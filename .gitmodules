@@ -1,0 +1,3 @@
+[submodule "application/flight_controller/modules/dummysensor/drivers/sensor/dummysensor/data/euroc23-team-data"]
+	path = application/flight_controller/modules/dummysensor/drivers/sensor/dummysensor/data/euroc23-team-data
+	url = https://github.com/catsystems/euroc23-team-data

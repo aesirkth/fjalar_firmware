@@ -30,6 +30,14 @@ K_THREAD_STACK_DEFINE(flight_thread_stack, FLIGHT_THREAD_STACK_SIZE);
 struct k_thread flight_thread_data;
 k_tid_t flight_thread_id;
 
+
+ZBUS_LISTENER_DEFINE(pressure_zlis, NULL);
+ZBUS_LISTENER_DEFINE(imu_zlis, NULL);
+// ZBUS_CHAN_ADD_OBS(pressure_zchan, pressure_zobs, 1);
+// ZBUS_CHAN_ADD_OBS(imu_zchan, imu_zobs, 1);
+
+// ZBUS_SUBSCRIBER_DEFINE(imu_zchan);
+
 void init_flight_state(fjalar_t *fjalar) {
     flight_thread_id = k_thread_create(
 		&flight_thread_data,

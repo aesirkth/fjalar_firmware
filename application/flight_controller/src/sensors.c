@@ -3,6 +3,7 @@
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/drivers/adc.h>
+#include <zephyr/zbus/zbus.h>
 
 #include <minmea.h>
 
@@ -28,6 +29,22 @@ void barometer_thread(fjalar_t *fjalar, void *p2, void *p3);
 void imu_thread(fjalar_t *fjalar, void *p2, void *p3);
 void gps_thread(fjalar_t *fjalar, void *p2, void *p3);
 void vbat_thread(fjalar_t *fjalar, void *p2, void *p3);
+
+ZBUS_CHAN_DEFINE(pressure_zchan, /* Name */
+		struct pressure_queue_entry, /* Message type */
+		NULL, /* Validator */
+		NULL, /* User Data */
+		ZBUS_OBSERVERS_EMPTY, /* observers */
+		ZBUS_MSG_INIT(.t = 0, .pressure = 0) /* Initial value */
+);
+
+ZBUS_CHAN_DEFINE(imu_zchan, /* Name */
+		struct imu_queue_entry, /* Message type */
+		NULL, /* Validator */
+		NULL, /* User Data */
+		ZBUS_OBSERVERS_EMPTY, /* observers */
+		ZBUS_MSG_INIT() /* Initial value */
+);
 
 K_MSGQ_DEFINE(pressure_msgq, sizeof(struct pressure_queue_entry), 3, 4);
 K_MSGQ_DEFINE(imu_msgq, sizeof(struct imu_queue_entry), 3, 4);
@@ -201,7 +218,10 @@ void barometer_thread(fjalar_t *fjalar, void *p2, void *p3) {
 		ret = k_msgq_put(&pressure_msgq, &q_entry, K_NO_WAIT);
 		if (ret != 0) {
 			LOG_ERR("Could not write to pressure msgq");
-			// continue; not necessary
+		}
+		ret = zbus_chan_pub(&pressure_zchan, &q_entry, K_MSEC(100));
+		if (ret != 0) {
+			LOG_ERR("Could not publish pressure to zbus");
 		}
 		fjalar_message_t msg;
 		msg.time = k_uptime_get_32();
