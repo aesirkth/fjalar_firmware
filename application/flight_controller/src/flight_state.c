@@ -30,13 +30,11 @@ K_THREAD_STACK_DEFINE(flight_thread_stack, FLIGHT_THREAD_STACK_SIZE);
 struct k_thread flight_thread_data;
 k_tid_t flight_thread_id;
 
+ZBUS_SUBSCRIBER_DEFINE(pressure_zobs, 1);
+ZBUS_SUBSCRIBER_DEFINE(imu_zobs, 1);
 
-ZBUS_LISTENER_DEFINE(pressure_zlis, NULL);
-ZBUS_LISTENER_DEFINE(imu_zlis, NULL);
-// ZBUS_CHAN_ADD_OBS(pressure_zchan, pressure_zobs, 1);
-// ZBUS_CHAN_ADD_OBS(imu_zchan, imu_zobs, 1);
-
-// ZBUS_SUBSCRIBER_DEFINE(imu_zchan);
+ZBUS_CHAN_ADD_OBS(pressure_zchan, pressure_zobs, 1);
+ZBUS_CHAN_ADD_OBS(imu_zchan, imu_zobs, 1);
 
 void init_flight_state(fjalar_t *fjalar) {
     flight_thread_id = k_thread_create(
@@ -121,6 +119,46 @@ static void evaluate_state(fjalar_t *fjalar) {
     }
 }
 
+void calc_imu_orientation_correction(const vec3 measured, quat result) {
+        vec3 measured_vector = {measured[0], measured[1], measured[2]};
+        vec3_normalize(measured_vector);
+        vec3 tmp_vec;
+        float x_rot_angle = atan2f(measured_vector[1], measured_vector[2]);
+        quat x_rot_quat = {
+            sinf(x_rot_angle / 2),
+            0,
+            0,
+            cosf(x_rot_angle / 2),
+        };
+        tmp_vec[0] = measured_vector[0];
+        tmp_vec[1] = measured_vector[1];
+        tmp_vec[2] = measured_vector[2];
+        quat_mul_vec3(measured_vector, x_rot_quat, tmp_vec);
+        vec3_normalize(measured_vector);
+
+        float y_rot_angle = -atan2f(measured_vector[0], measured_vector[2]);
+        quat y_rot_quat = {
+            0,
+            sinf(y_rot_angle / 2),
+            0,
+            cosf(y_rot_angle / 2),
+        };
+        tmp_vec[0] = measured_vector[0];
+        tmp_vec[1] = measured_vector[1];
+        tmp_vec[2] = measured_vector[2];
+        LOG_DBG("x rot %f y rot %f", x_rot_angle, y_rot_angle);
+
+        result[0] = 0;
+        result[1] = 0;
+        result[2] = 0;
+        result[3] = 1;
+        quat tmp;
+        quat_mul(tmp, x_rot_quat, result);
+        quat_normalize(tmp);
+        quat_mul(result, y_rot_quat, tmp);
+        quat_normalize(result);
+}
+
 void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
     struct k_poll_event events[2] = {
         K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_MSGQ_DATA_AVAILABLE,
@@ -196,46 +234,9 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
             float ay = window_get_median(&ay_filter);
             float az = window_get_median(&az_filter);
 
-            if (fjalar->flight_state == STATE_LAUNCHPAD
-            || fjalar->flight_state == STATE_IDLE
-            ) {
+            if (fjalar->flight_state == STATE_LAUNCHPAD) {
                 vec3 measured_vector = {ax, ay, az};
-                vec3_normalize(measured_vector);
-                vec3 tmp_vec;
-                float x_rot_angle = atan2f(measured_vector[1], measured_vector[2]);
-                quat x_rot_quat = {
-                    sinf(x_rot_angle / 2),
-                    0,
-                    0,
-                    cosf(x_rot_angle / 2),
-                };
-                tmp_vec[0] = measured_vector[0];
-                tmp_vec[1] = measured_vector[1];
-                tmp_vec[2] = measured_vector[2];
-                quat_mul_vec3(measured_vector, x_rot_quat, tmp_vec);
-                vec3_normalize(measured_vector);
-
-                float y_rot_angle = -atan2f(measured_vector[0], measured_vector[2]); // why is this negative? only god knows
-                quat y_rot_quat = {
-                    0,
-                    sinf(y_rot_angle / 2),
-                    0,
-                    cosf(y_rot_angle / 2),
-                };
-                tmp_vec[0] = measured_vector[0];
-                tmp_vec[1] = measured_vector[1];
-                tmp_vec[2] = measured_vector[2];
-                LOG_DBG("x rot %f y rot %f", x_rot_angle, y_rot_angle);
-
-                acc_correction_quat[0] = 0;
-                acc_correction_quat[1] = 0;
-                acc_correction_quat[2] = 0;
-                acc_correction_quat[3] = 1;
-                quat tmp;
-                quat_mul(tmp, x_rot_quat, acc_correction_quat);
-                quat_normalize(tmp);
-                quat_mul(acc_correction_quat, y_rot_quat, tmp);
-                quat_normalize(acc_correction_quat);
+                calc_imu_orientation_correction(measured_vector, acc_correction_quat);
             }
             vec3 acceleration = {ax, ay, az};
             vec3 acceleration_corrected = {ax, ay, az};
@@ -244,9 +245,8 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
             fjalar->ax = acceleration_corrected[0];
             fjalar->ay = acceleration_corrected[1];
             fjalar->az = acceleration_corrected[2];
-            if (fjalar->az < 0
-            && (fjalar->flight_state == STATE_LAUNCHPAD)) {
-                LOG_ERR("Acceleration is negative on the launchpad");
+            if (fjalar->az < 0 && (fjalar->flight_state == STATE_LAUNCHPAD)) {
+                LOG_WRN("Acceleration is negative on the launchpad");
             }
 
             LOG_DBG("Acceleration: %f %f %f", fjalar->ax, fjalar->ay, fjalar->az);

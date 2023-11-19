@@ -5,6 +5,7 @@
 #include <zephyr/init.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/display/cfb.h>
+#include <zephyr/sys/poweroff.h>
 
 #include <cfb_custom_font.h>
 
@@ -93,7 +94,7 @@ K_THREAD_DEFINE(power_thread_id, 512, power_thread, NULL, NULL, NULL, 10, 0, 0);
 
 void power_off(const struct gpio_dt_spec *gpio_pwr_en) {
     gpio_pin_set_dt(gpio_pwr_en, 0);
-    pm_state_force(0u, &(struct pm_state_info){PM_STATE_SOFT_OFF, 0, 0});
+    sys_poweroff();
     k_msleep(1000);
     // the line above kind of powers off the board.
     // If it somehow doesn't then enable external power again to notify the user

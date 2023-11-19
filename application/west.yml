@@ -11,7 +11,7 @@ manifest:
   projects:
     - name: zephyr
       remote: zephyrproject
-      revision: v3.4.0
+      revision: v3.5.0
       import:
         path-prefix: deps
 
@@ -19,11 +19,6 @@ manifest:
       remote: zephyrproject
       revision: 34c3432e81085bb717e4871d21ca419ae0058ec5
       path: deps/modules/lib/zscilib
-
-    - name: lvgl
-      remote: zephyrproject
-      revision: 9fe0a7cc0fb94bcbefc036ee27f1842f13e4e624
-      path: deps/modules/lib/gui/lvgl
 
   self:
     path: application

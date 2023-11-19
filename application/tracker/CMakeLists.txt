@@ -24,4 +24,4 @@ set(gen_dir ${ZEPHYR_BINARY_DIR}/include/generated/)
 # generate_cfb_font_for_target(app "fonts/Daydream.ttf" "${gen_dir}/cfb_custom_font.h" 23 24 -s 16)
 # generate_cfb_font_for_target(app "fonts/Daydream.ttf" "${gen_dir}/cfb_custom_font.h" 28 32 -s 20)
 
-generate_cfb_font_for_target(app "fonts/DotGothic16-Regular.ttf" "${gen_dir}/cfb_custom_font.h" 9 24 -s 16)
+generate_cfb_font_for_target(app "fonts/DotGothic16-Regular.ttf" "${gen_dir}/cfb_custom_font.h" 6 16)
