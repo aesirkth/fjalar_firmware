@@ -19,10 +19,10 @@ struct imu_queue_entry {
     float gz;
 } __attribute__((aligned(4)));
 
-ZBUS_CHAN_DECLARE(
-    pressure_zchan,
-    imu_zchan
-);
+// ZBUS_CHAN_DECLARE(
+//     pressure_zchan,
+//     imu_zchan
+// );
 
 extern struct k_msgq pressure_msgq;
 extern struct k_msgq imu_msgq;

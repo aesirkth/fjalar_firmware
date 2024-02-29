@@ -20,44 +20,74 @@ choice
 		bool "boot to launchpad"
 endchoice
 
+config APP_SENSORS_LOG_LEVEL
+    int "Application sensors log level"
+    default 0 if APP_SENSORS_LOG_LEVEL_OFF
+    default 1 if APP_SENSORS_LOG_LEVEL_ERR
+    default 2 if APP_SENSORS_LOG_LEVEL_WRN
+    default 3 if APP_SENSORS_LOG_LEVEL_INF
+    default 4 if APP_SENSORS_LOG_LEVEL_DBG
+    default 2
+    depends on LOG
+
 config APP_ACTUATION_LOG_LEVEL
-    int "Application log level"
+    int "Application filter log level"
+    default 0 if APP_ACTUATION_LOG_LEVEL_OFF
+    default 1 if APP_ACTUATION_LOG_LEVEL_ERR
+    default 2 if APP_ACTUATION_LOG_LEVEL_WRN
+    default 3 if APP_ACTUATION_LOG_LEVEL_INF
+    default 4 if APP_ACTUATION_LOG_LEVEL_DBG
     default 2
     depends on LOG
 
 config APP_FILTER_LOG_LEVEL
     int "Application filter log level"
+    default 0 if APP_FILTER_LOG_LEVEL_OFF
+    default 1 if APP_FILTER_LOG_LEVEL_ERR
+    default 2 if APP_FILTER_LOG_LEVEL_WRN
+    default 3 if APP_FILTER_LOG_LEVEL_INF
+    default 4 if APP_FILTER_LOG_LEVEL_DBG
     default 2
     depends on LOG
 
 config APP_FLIGHT_LOG_LEVEL
     int "Application flight state log level"
+    default 0 if APP_FLIGHT_LOG_LEVEL_OFF
+    default 1 if APP_FLIGHT_LOG_LEVEL_ERR
+    default 2 if APP_FLIGHT_LOG_LEVEL_WRN
+    default 3 if APP_FLIGHT_LOG_LEVEL_INF
+    default 4 if APP_FLIGHT_LOG_LEVEL_DBG
     default 2
     depends on LOG
 
 config APP_MAIN_LOG_LEVEL
-    int "Application filter log level"
+    int "Application main log level"
+    default 0 if APP_MAIN_LOG_LEVEL_OFF
+    default 1 if APP_MAIN_LOG_LEVEL_ERR
+    default 2 if APP_MAIN_LOG_LEVEL_WRN
+    default 3 if APP_MAIN_LOG_LEVEL_INF
+    default 4 if APP_MAIN_LOG_LEVEL_DBG
     default 2
     depends on LOG
-config APP_SENSORS_LOG_LEVEL
-    int "Application filter log level"
-    default 2
-    depends on LOG
+
+
 config APP_COMMANDS_LOG_LEVEL
-    int "Application filter log level"
+    int "Application commands log level"
+    default 0 if APP_COMMANDS_LOG_LEVEL_OFF
+    default 1 if APP_COMMANDS_LOG_LEVEL_ERR
+    default 2 if APP_COMMANDS_LOG_LEVEL_WRN
+    default 3 if APP_COMMANDS_LOG_LEVEL_INF
+    default 4 if APP_COMMANDS_LOG_LEVEL_DBG
     default 2
     depends on LOG
+
+
 config APP_COMMUNICATION_LOG_LEVEL
-    int "Application filter log level"
+    int "Application communication log level"
+    default 0 if APP_COMMUNICATION_LOG_LEVEL_OFF
+    default 1 if APP_COMMUNICATION_LOG_LEVEL_ERR
+    default 2 if APP_COMMUNICATION_LOG_LEVEL_WRN
+    default 3 if APP_COMMUNICATION_LOG_LEVEL_INF
+    default 4 if APP_COMMUNICATION_LOG_LEVEL_DBG
     default 2
     depends on LOG
-
-
-# config USB_CDC_ACM_LOG_LEVEL
-#     int
-#     default 0 if USB_CDC_ACM_LOG_LEVEL_OFF
-#     default 1 if USB_CDC_ACM_LOG_LEVEL_ERR
-#     default 2 if USB_CDC_ACM_LOG_LEVEL_WRN
-#     default 3 if USB_CDC_ACM_LOG_LEVEL_INF
-#     default 4 if USB_CDC_ACM_LOG_LEVEL_DBG
-#     depends on LOG

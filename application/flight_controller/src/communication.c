@@ -31,6 +31,8 @@ LOG_MODULE_REGISTER(communication, CONFIG_APP_COMMUNICATION_LOG_LEVEL);
 #define LORA_TRANSMIT true
 #define LORA_RECEIVE false
 
+volatile bool terminate_communication = false;
+
 K_THREAD_STACK_DEFINE(sampler_thread_stack, SAMPLER_THREAD_STACK_SIZE);
 struct k_thread sampler_thread_data;
 k_tid_t sampler_thread_id;
@@ -83,6 +85,7 @@ enum message_priority {
 };
 
 void init_communication(fjalar_t *fjalar) {
+	terminate_communication = false;
 	#if DT_ALIAS_EXISTS(lora)
 	lora_thread_id = k_thread_create(
 		&lora_thread_data,
@@ -140,6 +143,29 @@ void init_communication(fjalar_t *fjalar) {
 		SAMPLER_THREAD_PRIORITY, 0, K_NO_WAIT
 	);
 	k_thread_name_set(sampler_thread_id, "sampler");
+}
+
+int deinit_communication() {
+	terminate_communication = true;
+	int e = 0;
+	#if DT_ALIAS_EXISTS(lora)
+	e |= k_thread_join(&lora_thread_data, K_MSEC(1000));
+	#endif
+
+	#if DT_ALIAS_EXISTS(data_usb)
+	e |= k_thread_join(&usb_thread_data, K_MSEC(1000));
+	#endif
+
+	#if DT_ALIAS_EXISTS(data_flash)
+	e |= k_thread_join(&flash_thread_data, K_MSEC(1000));
+	#endif
+
+	#if DT_ALIAS_EXISTS(external_uart)
+	e |= k_thread_join(&uart_thread_data, K_MSEC(1000));
+	#endif
+
+	e |= k_thread_join(&sampler_thread_data, K_MSEC(1000));
+	return e;
 }
 
 void send_message(fjalar_t *fjalar, fjalar_message_t *msg, enum message_priority prio) {

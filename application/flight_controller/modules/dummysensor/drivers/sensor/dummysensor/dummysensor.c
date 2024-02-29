@@ -33,6 +33,8 @@ struct dummysensor_data {
 	float gz;
 	float p;
 
+	int64_t offset;
+
 	uint32_t baro_index;
 	uint32_t imu_index;
 };
@@ -44,7 +46,7 @@ static int dummysensor_sample_fetch(const struct device *dev,
 				      enum sensor_channel chan)
 {
 	struct dummysensor_data *data = (struct dummysensor_data *) dev->data;
-	float current_time = k_uptime_get() / 1000.0 - DATA_DELAY;
+	float current_time = k_uptime_get() / 1000.0 - DATA_DELAY - data->offset;
 
 	while (true) {
 		if (data->baro_index >= baro_length) {
@@ -96,6 +98,11 @@ static int dummysensor_channel_get(const struct device *dev,
 			return sensor_value_from_float(val, data->gz);
 		case SENSOR_CHAN_PRESS:
 			return sensor_value_from_float(val, data->p);
+		case SENSOR_CHAN_PRIV_START:
+			data->offset = k_uptime_get();
+			data->baro_index = 0;
+			data->imu_index = 0;
+			break;
 		default:
 			return -ENOTSUP;
 	}
@@ -123,7 +130,7 @@ static int dummysensor_init(const struct device *dev)
 }
 
 #define dummysensor_INIT(i)						       \
-	static struct dummysensor_data dummysensor_data_##i = {.baro_index = 0, .imu_index = 0};	       \
+	static struct dummysensor_data dummysensor_data_##i = {.baro_index = 0, .imu_index = 0, .offset = 0};	       \
 									       \
 	static const struct dummysensor_config dummysensor_config_##i; \
 									       \

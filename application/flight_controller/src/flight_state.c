@@ -18,10 +18,10 @@ LOG_MODULE_REGISTER(flight, CONFIG_APP_FLIGHT_LOG_LEVEL);
 
 #define IMU_WINDOW_SIZE 11
 
-#define BOOST_ACCEL_THRESHOLD 15.0
-#define BOOST_SPEED_THRESHOLD 15.0
+#define BOOST_ACCEL_THRESHOLD 20.0
 
-#define COAST_ACCEL_THRESHOLD 5.0
+#define COAST_ACCEL_THRESHOLD 2.0
+
 #define DROGUE_DEPLOYMENT_FAILURE_DELAY 8000
 
 void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1);
@@ -30,11 +30,11 @@ K_THREAD_STACK_DEFINE(flight_thread_stack, FLIGHT_THREAD_STACK_SIZE);
 struct k_thread flight_thread_data;
 k_tid_t flight_thread_id;
 
-ZBUS_SUBSCRIBER_DEFINE(pressure_zobs, 1);
-ZBUS_SUBSCRIBER_DEFINE(imu_zobs, 1);
+// ZBUS_SUBSCRIBER_DEFINE(pressure_zobs, 1);
+// ZBUS_SUBSCRIBER_DEFINE(imu_zobs, 1);
 
-ZBUS_CHAN_ADD_OBS(pressure_zchan, pressure_zobs, 1);
-ZBUS_CHAN_ADD_OBS(imu_zchan, imu_zobs, 1);
+// ZBUS_CHAN_ADD_OBS(pressure_zchan, pressure_zobs, 1);
+// ZBUS_CHAN_ADD_OBS(imu_zchan, imu_zobs, 1);
 
 void init_flight_state(fjalar_t *fjalar) {
     flight_thread_id = k_thread_create(
@@ -81,11 +81,6 @@ static void evaluate_state(fjalar_t *fjalar) {
             fjalar->flight_state = STATE_BOOST;
             fjalar->liftoff_at = k_uptime_get_32();
             LOG_WRN("Changing state to BOOST due to acceleration");
-        }
-        if (fjalar->velocity > BOOST_SPEED_THRESHOLD) {
-            fjalar->flight_state = STATE_BOOST;
-            fjalar->liftoff_at = k_uptime_get_32();
-            LOG_WRN("Changing state to BOOST due to speed");
         }
         break;
     case STATE_BOOST:

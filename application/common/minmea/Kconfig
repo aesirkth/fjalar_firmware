@@ -1,4 +1,9 @@
 config MINMEA_LOG_LEVEL
     int "minmea log level"
+    default 0 if MINMEA_LOG_LEVEL_OFF
+    default 1 if MINMEA_LOG_LEVEL_ERR
+    default 2 if MINMEA_LOG_LEVEL_WRN
+    default 3 if MINMEA_LOG_LEVEL_INF
+    default 4 if MINMEA_LOG_LEVEL_DBG
     default 2
     depends on LOG

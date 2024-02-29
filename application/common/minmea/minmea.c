@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
-
+#include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
 #define boolstr(s) ((s) ? "true" : "false")

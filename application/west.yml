@@ -11,13 +11,13 @@ manifest:
   projects:
     - name: zephyr
       remote: zephyrproject
-      revision: v3.5.0
+      revision: v3.6.0
       import:
         path-prefix: deps
 
     - name: zscilib
       remote: zephyrproject
-      revision: 34c3432e81085bb717e4871d21ca419ae0058ec5
+      revision: a4bb6cfd6800e14373261904825f7f34a3a7f2e5
       path: deps/modules/lib/zscilib
 
   self:

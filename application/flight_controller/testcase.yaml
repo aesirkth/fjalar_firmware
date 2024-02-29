@@ -1,0 +1,6 @@
+tests:
+  application_tests.runtime_test:
+    platform_allow:
+      - native_posix_64
+    extra_args: TEST_BUILD=true
+    build_only: true

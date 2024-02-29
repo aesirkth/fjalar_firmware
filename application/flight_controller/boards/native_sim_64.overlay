@@ -15,6 +15,7 @@
         pyro1-sense = &pyro1_sense;
         pyro2-sense = &pyro2_sense;
         pyro3-sense = &pyro3_sense;
+        // data-flash = &flashsim;
     };
 
     dummysensor: dummysensor {
@@ -54,4 +55,11 @@
 			gpios = <&gpio0 2 GPIO_ACTIVE_LOW>;
 		};
 	};
+
+    // flashsim: flashsim {
+	// 	status = "okay";
+	// 	compatible = "zephyr,sim-flash";
+    //     erase-value = <0xff>;
+	// 	// size = <0x8000000>;
+	// };
 };

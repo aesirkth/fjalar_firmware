@@ -34,7 +34,10 @@ struct k_thread pyro_thread_data;
 k_tid_t pyro_thread_id;
 void pyro_thread(fjalar_t *fjalar, void *, void *);
 
+volatile bool terminate_actuation =false;
+
 void init_actuation(fjalar_t *fjalar) {
+    terminate_actuation = false;
     led_thread_id = k_thread_create(
 		&led_thread_data,
 		led_thread_stack,
@@ -66,6 +69,14 @@ void init_actuation(fjalar_t *fjalar) {
 	);
 	k_thread_name_set(buzzer_thread_id, "buzzer");
 	#endif
+}
+
+int deinit_actuation() {
+    terminate_actuation = true;
+    int e;
+    e = k_thread_join(&led_thread_data, K_MSEC(1000));
+    e |= k_thread_join(&pyro_thread_data, K_MSEC(1000));
+    e |= k_thread_join(&buzzer_thread_data, K_MSEC(1000));
 }
 
 void led_thread(fjalar_t *fjalar, void *p2, void *p3) {
@@ -190,10 +201,21 @@ void buzzer_thread(fjalar_t *fjalar, void *p2, void *p3) {
                 continue;
         }
         switch (fjalar->flight_state) {
-            case STATE_IDLE:
+            case STATE_LANDED:
                 play_song(&buzzer_dt, nokia_melody, sizeof(nokia_melody), nokia_tempo);
                 k_msleep(1000);
                 break;
+
+            case STATE_IDLE:
+                play_song(&buzzer_dt, greensleeves_melody, sizeof(greensleeves_melody), greensleeves_tempo);
+                k_msleep(1000);
+                break;
+
+            case STATE_LAUNCHPAD:
+                play_song(&buzzer_dt, keyboardcat_melody, sizeof(keyboardcat_melody), keyboardcat_tempo);
+                k_msleep(1000);
+                break;
+
             default:
                 err = pwm_set_dt(&buzzer_dt, center_period, center_period / 2);
                 k_msleep(100);

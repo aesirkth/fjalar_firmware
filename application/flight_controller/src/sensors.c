@@ -219,7 +219,7 @@ void barometer_thread(fjalar_t *fjalar, void *p2, void *p3) {
 		if (ret != 0) {
 			LOG_ERR("Could not write to pressure msgq");
 		}
-		ret = zbus_chan_pub(&pressure_zchan, &q_entry, K_MSEC(100));
+		// ret = zbus_chan_pub(&pressure_zchan, &q_entry, K_MSEC(100));
 		if (ret != 0) {
 			LOG_ERR("Could not publish pressure to zbus");
 		}

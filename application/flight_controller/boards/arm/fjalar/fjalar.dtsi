@@ -47,19 +47,57 @@
 	pinctrl-names = "default";
 	current-speed = <9600>;
 	status = "okay";
+	gnss: gnss-nmea-generic {
+			compatible = "gnss-nmea-generic";
+	};
+	gnss_pps: gnss-pss {
+		compatible = "gnss-pps";
+	};
 };
 
 &gpdma1 {
 	status = "okay";
 };
 
+// &clk_hsi48 {
+// 	status = "okay";
+// };
+
+// &clk_hse {
+// 	status = "okay";
+// 	clock-frequency = <DT_FREQ_M(48)>;
+// };
+
+// &clk_msis {
+// 	status = "okay";
+// 	msi-range = <4>;
+// 	msi-pll-mode;
+// };
+
+// &pll1 {
+// 	div-m = <3>;
+// 	mul-n = <10>;
+// 	div-q = <2>;
+// 	div-r = <1>;
+// 	clocks = <&clk_hse>;
+// 	status = "okay";
+// };
+
+// &rcc {
+// 	clocks = <&pll1>;
+// 	clock-frequency = <DT_FREQ_M(160)>;
+// 	ahb-prescaler = <1>;
+// 	apb1-prescaler = <1>;
+// 	apb2-prescaler = <1>;
+// 	apb3-prescaler = <1>;
+// };
+
 &clk_hsi48 {
 	status = "okay";
 };
 
-&clk_hse {
+&clk_lse {
 	status = "okay";
-	clock-frequency = <DT_FREQ_M(48)>;
 };
 
 &clk_msis {
@@ -69,11 +107,11 @@
 };
 
 &pll1 {
-	div-m = <3>;
-	mul-n = <10>;
+	div-m = <1>;
+	mul-n = <80>;
 	div-q = <2>;
-	div-r = <1>;
-	clocks = <&clk_hse>;
+	div-r = <2>;
+	clocks = <&clk_msis>;
 	status = "okay";
 };
 
