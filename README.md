@@ -1,12 +1,13 @@
 # Fjalar firmware
 
-![](docs/fjalar.jpg)
-![](docs/nokia.mp4)
+![](docs/stack.jpg)
+<video src='docs/nokia.mp4' width=180>
+
 ### Overview
-This repository contains code to support a flight controller.
+This repository contains code to support a flight controller. Currently, the only supported hardware is the [Fjalar flight controller](https://github.com/aesirkth/fjalar_flight_controller) (as the name suggests) but one of the goals of this project is portability.
 
 ### sub-projects
-The codebase is split into three projects, the dashboard, the handheld tracker firmware and the flight firmware. Ideally these should be split into separate projects eventually.
+The codebase is split into three projects, the dashboard, the handheld tracker firmware and the flight firmware. Ideally these should be split into separate repositories eventually.
 
 Both firmwares use zephyr and are located in the `/application/` folder.
 
@@ -35,6 +36,6 @@ The tracker can be built and flashed using `west application/tracker -b t_echo -
 Run `west build application/flight_controller/ -p auto -b fjalar -t flash` to build and flash.
 
 ### Native simulation
-Both the tracker and flight firmware supports compiling for `native_posix_64` allowing you to run it natively. This only works on linux, if you are on Windows try using WSL 2 (WSL 1 doesn't work).
+Both the tracker and flight firmware supports compiling for `native_sim_64` allowing you to run it natively. This only works on linux, if you are on Windows try using WSL 2 (WSL 1 doesn't work).
 
-To run natively change the board to `-b native_posix_64` and use `-t run` instead of `-t flash`
+To run natively change the board to `-b native_sim_64` and use `-t run` instead of `-t flash`
