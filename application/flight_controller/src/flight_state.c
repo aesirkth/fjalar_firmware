@@ -33,6 +33,7 @@ LOG_MODULE_REGISTER(flight, CONFIG_APP_FLIGHT_LOG_LEVEL);
 
 position_filter_t pos_kf;
 attitude_filter_t att_kf;
+aerodynamics_t aerodynamics;
 init_t init;
 
 void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1);
@@ -302,9 +303,9 @@ void periodic_thread(void *p1, void *p2, void *p3) {
     while (true) {
         Pmtx_analysis(&pos_kf);
 
-        if (pos_kf.X_data[8]<0 && pos_kf.X_data[2]>100){
-            update_apogee_estimate(&pos_kf);
-        } 
+        if (pos_kf.X_data[2]>10 && is_thrust_over(&pos_kf, &att_kf, &aerodynamics)){
+            update_apogee_estimate(&pos_kf, &aerodynamics);
+        } else{pos_kf.expected_apogee = 0;}
 
         uint32_t t_ms  = k_uptime_get_32();     // milliseconds since boot
         double   t_sec = (double)t_ms / 1000.0; // seconds
@@ -314,7 +315,7 @@ void periodic_thread(void *p1, void *p2, void *p3) {
             pos_kf.X_data[3], pos_kf.X_data[4], pos_kf.X_data[5], // vx vy vz
             pos_kf.X_data[6], pos_kf.X_data[7], pos_kf.X_data[8], // ax ay az
             att_kf.X_data[0], att_kf.X_data[1], att_kf.X_data[3], // roll pitch yaw
-            pos_kf.whatever); // pressure
+            pos_kf.pressure, pos_kf.expected_apogee); // pressure
 
         k_msleep(10); // 10 ms = 100 Hz
     }
@@ -339,6 +340,7 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
 
     position_filter_init(&pos_kf, &init);
     attitude_filter_init(&att_kf, &init);
+    drag_init(&aerodynamics);
 
     struct pressure_queue_entry pressure;
     struct imu_queue_entry imu;
@@ -365,7 +367,6 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
 
         if (k_msgq_get(&imu_msgq, &imu, K_NO_WAIT) == 0) {
             events[1].state = K_POLL_STATE_NOT_READY;
-            LOG_INF("raw az: %f", -imu.ay);
 
             // init mode
             if (!init.position_init && init.n_imu < IMU_INIT_N) {
@@ -395,15 +396,15 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
                 position_filter_accelerometer(&pos_kf, &att_kf, ax, ay, az, imu.t); // needs magnetometer
                 attitude_filter_gyroscope(&pos_kf, &att_kf, gx, gy, gz, imu.t);
 
-                float predicted_acceleration = adrag_get(&pos_kf) + 9.81;
+                // prerequisite for running attitude accelerometer
+                drag_update(&pos_kf, &att_kf, &aerodynamics); 
 
-                // differrence between predicted acceleration and acceleration --> if zero there are no unmodelled forces (thrust)
-                float az_difference = az - predicted_acceleration;
-
-                if (pos_kf.X_data[2]<100 && fabsf(pos_kf.X_data[8])<1){//(pos_kf.X_data[8]<1 && pos_kf.X_data[8]>-1 && pos_kf.X_data[2]<100){
-                    //attitude_filter_accelerometer(&att_kf, &pos_kf, ax, ay, az, imu.t); //only used pre launch
+                if (pos_kf.X_data[2]<10 && filter_get_acceleration(&pos_kf)<5){
+                    attitude_filter_accelerometer_ground(&att_kf, &pos_kf, ax, ay, az, imu.t); //only used pre launch
                 }
-
+                if (pos_kf.X_data[2]>10 && is_thrust_over(&pos_kf, &att_kf, &aerodynamics)){
+                    //void attitude_filter_accelerometer_cruise(&att_kf, &pos_kf, ax, ay, az, time);
+                }
             }
 
             // Give an error if the acceleration in z at launchpad is not around 9.8
@@ -419,8 +420,7 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
 
         if (k_msgq_get(&pressure_msgq, &pressure, K_NO_WAIT) == 0) {
             events[0].state = K_POLL_STATE_NOT_READY;
-            //LOG_INF("velocity total: %f", filter_get_velocity(&pos_kf));
-            pos_kf.whatever = pressure.pressure*1000;
+            pos_kf.pressure = pressure.pressure*1000;
             
 
             // init
@@ -432,9 +432,7 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
                     } 
                 }
             } else {
-                if (filter_get_velocity(&pos_kf)<280){
-                    position_filter_barometer(&pos_kf, pressure.pressure, pressure.t);
-                }else{LOG_INF("SONIC BOOM WARNING");}
+                //position_filter_barometer(&pos_kf, pressure.pressure, pressure.t);
             }
 
             fjalar->altitude = filter_get_altitude(&pos_kf);

@@ -1,9 +1,20 @@
+#pragma once
+
 #include <zsl/interp.h>   /* zsl_interp_lin_y_arr() */
 #include "filter.h"
 
-float adrag_get(position_filter_t *pos_kf);
+typedef struct aerodynamics {
+    zsl_real_t drag_data[3];
+    struct zsl_mtx drag; // drag induced acceleration in local frame
+    float drag_norm;
+} aerodynamics_t;
+
+bool is_thrust_over(position_filter_t *pos_kf, attitude_filter_t *att_kf, aerodynamics_t *aerodynamics);
+float pressure_to_AGL(position_filter_t *pos_kf, aerodynamics_t *aerodynamics, float pressure);
+void drag_init(aerodynamics_t *aerodynamics);
+void drag_update(position_filter_t *pos_kf, attitude_filter_t *att_kf, aerodynamics_t *aerodynamics);
 float cb_update(position_filter_t *pos_kf, float v_y, float v_z, float z);
-void update_apogee_estimate(position_filter_t *pos_kf);
+void update_apogee_estimate(position_filter_t *pos_kf, aerodynamics_t *aerodynamics);
 
 #ifndef AERODYNAMICS_H
 #define AERODYNAMICS_H
@@ -11,7 +22,6 @@ void update_apogee_estimate(position_filter_t *pos_kf);
 #define MASS_DRY  9.5 // Signy
 #define GRAVITY 9.81
 #define AREA 0.0087 // Signy
-
 
 static const struct zsl_interp_xy cd_tbl[] = {
     {3.43, 0.445392077},

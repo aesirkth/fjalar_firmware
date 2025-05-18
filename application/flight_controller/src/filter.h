@@ -24,7 +24,10 @@ typedef struct position_filter {
     float pressure_ground;
     float expected_apogee;
 
-    float whatever;
+    float pressure;
+
+    zsl_real_t drag_data[3];
+    struct zsl_mtx drag;
 
     uint32_t previous_update_accelerometer;
     bool seeded;
@@ -57,9 +60,11 @@ void position_filter_gps(position_filter_t *pos_kf, float lat, float lon, float 
 
 void attitude_filter_init(attitude_filter_t *att_kf, init_t *init);
 void attitude_filter_gyroscope(position_filter_t *pos_kf, attitude_filter_t *att_kf, float gx, float gy, float gz, uint32_t time);
-void attitude_filter_accelerometer(attitude_filter_t *att_kf, position_filter_t *pos_kf, float ax, float ay, float az, uint32_t time);
+void attitude_filter_accelerometer_ground(attitude_filter_t *att_kf, position_filter_t *pos_kf, float ax, float ay, float az, uint32_t time);
+void attitude_filter_accelerometer_cruise(attitude_filter_t *att_kf, position_filter_t *pos_kf, float ax, float ay, float az, uint32_t time);
 
 float filter_get_altitude(position_filter_t *pos_kf);
 float filter_get_velocity(position_filter_t *pos_kf);
+float filter_get_acceleration(position_filter_t *pos_kf);
 
 void Pmtx_analysis(position_filter_t *pos_kf);

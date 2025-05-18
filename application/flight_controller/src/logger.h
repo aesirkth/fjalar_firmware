@@ -15,7 +15,7 @@ void csv_log(CSVLogger *logger,
              double vx, double vy, double vz,
              double ax, double ay, double az,
              double rx, double ry, double rz,
-             double p);
+             double p,  double expected_apogee);
 void csv_close(CSVLogger *logger);
 
 extern CSVLogger logger;

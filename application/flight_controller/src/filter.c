@@ -128,7 +128,6 @@ void position_filter_accelerometer(position_filter_t *pos_kf, attitude_filter_t 
         pos_kf->seeded = true;
         return;
     }
-    LOG_INF("velocity start z: %f", pos_kf->X_data[5]);
     float dt = (time - pos_kf->previous_update_accelerometer) / 1000.0;
     pos_kf->previous_update_accelerometer = time;
 
@@ -191,7 +190,6 @@ void position_filter_accelerometer(position_filter_t *pos_kf, attitude_filter_t 
         .sz_cols = 1,
         .data = u_data
     };
-    LOG_INF("acceleration    : %f", u_data[2]);
 
 
     // rotational matrix
@@ -234,7 +232,6 @@ void position_filter_accelerometer(position_filter_t *pos_kf, attitude_filter_t 
     zsl_mtx_mult(&AP, &AT, &APAT);
     zsl_mtx_add(&APAT, &pos_kf->Q, &pos_kf->P);
 
-    LOG_INF("velocity z end: %f", pos_kf->X_data[5]);
 };
 
 
@@ -329,11 +326,6 @@ void position_filter_barometer(position_filter_t *pos_kf, float pressure_kpa, ui
     zsl_mtx_mult(&K, &H, &KH);
     zsl_mtx_sub(&I9, &KH, &I9KH);
     zsl_mtx_mult(&I9KH, &pos_kf->P, &pos_kf->P);
-
-    //LOG_INF("vxy: %f", sqrtf(pos_kf->X_data[3]*pos_kf->X_data[3] + pos_kf->X_data[4]*pos_kf->X_data[4]));
-    //LOG_INF("vz: %f", pos_kf->X_data[5]);
-    //LOG_INF("az: %f", pos_kf->X_data[8]);
-
 };
 
 // Correction with gps
@@ -539,7 +531,6 @@ void attitude_filter_gyroscope(position_filter_t *pos_kf, attitude_filter_t *att
     gy *= (M_PI/180);
     gz *= (M_PI/180);
 
-    //LOG_INF("gx: %f", gx);
     // Identity matrix 3x3
     zsl_real_t I3_data[9] = {
         1, 0, 0,
@@ -609,7 +600,7 @@ void attitude_filter_gyroscope(position_filter_t *pos_kf, attitude_filter_t *att
 };
 
 
-void attitude_filter_accelerometer(attitude_filter_t *att_kf, position_filter_t *pos_kf, float ax, float ay, float az, uint32_t time){
+void attitude_filter_accelerometer_ground(attitude_filter_t *att_kf, position_filter_t *pos_kf, float ax, float ay, float az, uint32_t time){
     // z matrix
     zsl_real_t z_data[3] = {
         ax,
@@ -636,22 +627,20 @@ void attitude_filter_accelerometer(attitude_filter_t *att_kf, position_filter_t 
 
     // EKF STEPS
     // create h(x)
-    float g = 9.81;
+    float g = pos_kf->g;
 
-    float phi = att_kf->X_data[0] + M_PI/2;
+    float phi = att_kf->X_data[0];
     float theta = att_kf->X_data[1];
 
     float sp = sin(phi);
     float cp = cos(phi);
     float st = sin(theta);
     float ct = cos(theta);
-
-    float drag_accel = adrag_get(pos_kf);
-
-    ZSL_MATRIX_DEF(hx, 3, 1); // Projection of gravity
+    
+    ZSL_MATRIX_DEF(hx, 3, 1); // Is not correct for accelerating system
     hx.data[0] = -g*st;
     hx.data[1] = g*sp*ct;
-    hx.data[2] = g*cp*ct + drag_accel;
+    hx.data[2] = g*cp*ct;
 
     // create H (jacobian of h(x))
     ZSL_MATRIX_DEF(H, 3, 3);
@@ -675,22 +664,8 @@ void attitude_filter_accelerometer(attitude_filter_t *att_kf, position_filter_t 
     ZSL_MATRIX_DEF(y, 3, 1);
     zsl_mtx_sub(&z, &hx, &y);
 
-    y.data[0] = 0;
+    y.data[0] = 0; // remove this later (just for troubleshooting)
     y.data[1] = 0;
-
-    //LOG_INF("z[0]: %f", z_data[0]);
-    //LOG_INF("z[1]: %f", z_data[1]);
-    //LOG_INF("z[2]: %f", z_data[2]);
-
-    //LOG_INF("hx[0]: %f", hx.data[0]);
-    //LOG_INF("hx[1]: %f", hx.data[1]);
-    //LOG_INF("hx[2]: %f", hx.data[2]);
-
-    //LOG_INF("velocity: %f", filter_get_velocity(pos_kf));
-
-    //LOG_INF("y[0]: %f", y.data[0]);
-    //LOG_INF("y[1]: %f", y.data[1]);
-    //LOG_INF("y[2]: %f", y.data[2]);
 
     // S
     ZSL_MATRIX_DEF(HP, 3, 3);
@@ -719,9 +694,82 @@ void attitude_filter_accelerometer(attitude_filter_t *att_kf, position_filter_t 
     zsl_mtx_mult(&K, &H, &KH);
     zsl_mtx_sub(&I3, &KH, &I3KH);
     zsl_mtx_mult(&I3KH, &att_kf->P, &att_kf->P);
-    //LOG_INF("Roll : %f", (att_kf->X_data[0]));
-    //LOG_INF("Pitch: %f", (att_kf->X_data[1]));
 };
+
+void attitude_filter_accelerometer_cruise(attitude_filter_t *att_kf, position_filter_t *pos_kf, float ax, float ay, float az, uint32_t time){
+    // z matrix
+    zsl_real_t z_data[3] = {
+        ax,
+        ay,
+        az
+    };
+    struct zsl_mtx z = {
+        .sz_rows = 3,
+        .sz_cols = 1,
+        .data = z_data
+    };
+
+    // Identity matrix 3x3
+    zsl_real_t I3_data[9] = {
+        1, 0, 0,
+        0, 1, 0,
+        0, 0, 1
+    };
+    struct zsl_mtx I3 = {
+        .sz_rows = 3,
+        .sz_cols = 3,
+        .data = I3_data
+    };
+
+    // EKF STEPS
+    // create h(x)
+    ZSL_MATRIX_DEF(hx, 3, 1); // Is not correct for accelerating system
+
+    // create H (jacobian of h(x))
+    ZSL_MATRIX_DEF(H, 3, 3);
+
+    
+
+    ZSL_MATRIX_DEF(HT, 3, 3);
+    zsl_mtx_trans(&H, &HT);
+
+    // correction calculation
+    // y
+    ZSL_MATRIX_DEF(y, 3, 1);
+    zsl_mtx_sub(&z, &hx, &y);
+
+    y.data[0] = 0; // remove this later (just for troubleshooting)
+    y.data[1] = 0;
+
+    // S
+    ZSL_MATRIX_DEF(HP, 3, 3);
+    ZSL_MATRIX_DEF(HPHT, 3, 3);
+    ZSL_MATRIX_DEF(S, 3, 3);
+    zsl_mtx_mult(&H, &att_kf->P, &HP);
+    zsl_mtx_mult(&HP, &HT, &HPHT);
+    zsl_mtx_add(&HPHT, &att_kf->R, &S);
+
+    // K
+    ZSL_MATRIX_DEF(PHT, 3, 3);
+    ZSL_MATRIX_DEF(S_inv, 3, 3);
+    ZSL_MATRIX_DEF(K, 3, 3);
+    zsl_mtx_mult(&att_kf->P, &HT, &PHT);
+    zsl_mtx_inv(&S, &S_inv);
+    zsl_mtx_mult(&PHT, &S_inv, &K);
+
+    // X
+    ZSL_MATRIX_DEF(Ky, 3, 1);
+    zsl_mtx_mult(&K, &y, &Ky);
+    zsl_mtx_add(&att_kf->X, &Ky, &att_kf->X);
+
+    // P
+    ZSL_MATRIX_DEF(KH, 3, 3);
+    ZSL_MATRIX_DEF(I3KH, 3, 3);
+    zsl_mtx_mult(&K, &H, &KH);
+    zsl_mtx_sub(&I3, &KH, &I3KH);
+    zsl_mtx_mult(&I3KH, &att_kf->P, &att_kf->P);
+}
+
 
 
 
@@ -735,6 +783,18 @@ float filter_get_velocity(position_filter_t *pos_kf) {
     float vx = pos_kf->X_data[3];
     float vy = pos_kf->X_data[4];
     float vz = pos_kf->X_data[5];
-    float v_resultant = sqrtf(vx*vx + vy*vy + vz*vz);
-    return v_resultant;
+    float v_norm;
+    if (vz>0){v_norm = sqrtf(vx*vx + vy*vy + vz*vz);}
+    else{v_norm = -sqrtf(vx*vx + vy*vy + vz*vz);}
+    return v_norm;
+}
+
+float filter_get_acceleration(position_filter_t *pos_kf) {
+    float ax = pos_kf->X_data[6];
+    float ay = pos_kf->X_data[7];
+    float az = pos_kf->X_data[8];
+    float a_norm;
+    if (az>0){a_norm = sqrtf(ax*ax + ay*ay + az*az);}
+    else{a_norm = -sqrtf(ax*ax + ay*ay + az*az);}
+    return a_norm;
 }

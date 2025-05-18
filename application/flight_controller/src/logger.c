@@ -21,7 +21,7 @@ bool csv_init(CSVLogger *logger, const char *path) {
         "velocity_x,velocity_y,velocity_z,"
         "acceleration_x,acceleration_y,acceleration_z,"
         "rotation_x,rotation_y,rotation_z,"
-        "pressure\n"
+        "pressure,expected_apogee\n"
     );
     fflush(logger->fp);
     return true;
@@ -33,7 +33,7 @@ void csv_log(CSVLogger *logger,
              double    vx, double vy, double vz,
              double    ax, double ay, double az,
              double    rx, double ry, double rz,
-             double p)
+             double p, double expected_apogee)
 {
     fprintf(logger->fp,
         "%.6f,"    /* time */
@@ -41,13 +41,13 @@ void csv_log(CSVLogger *logger,
         "%.6f,%.6f,%.6f,"  /* vel   */
         "%.6f,%.6f,%.6f,"  /* accel  */
         "%.6f,%.6f,%.6f," /* rot   */
-        "%.6f\n", // pressure
+        "%.6f,%.6f\n", // pressure, estimated_apogee
         t,
         dx, dy, dz,
         vx, vy, vz,
         ax, ay, az,
         rx, ry, rz,
-        p
+        p, expected_apogee
     );
     fflush(logger->fp);
 }
