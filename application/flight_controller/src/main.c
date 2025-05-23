@@ -32,10 +32,7 @@ int main(void) {
 		k_msleep(1000);
 	}
 	#endif
-
-	//usb_enable(NULL);          /* start USB-CDC */
-    //printk("USB-CDC ready\n");
-
+	
 	printk("Started\n");
 	fjalar_god.sudo = false;
 	uint8_t cpp_buf[64];
