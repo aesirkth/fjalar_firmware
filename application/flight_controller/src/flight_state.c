@@ -8,7 +8,6 @@
 #include "sensors.h"
 #include "filter.h"
 #include "aerodynamics.h"
-#include "logger.h"
 
 LOG_MODULE_REGISTER(flight, CONFIG_APP_FLIGHT_LOG_LEVEL);
 
@@ -309,13 +308,6 @@ void periodic_thread(void *p1, void *p2, void *p3) {
 
         uint32_t t_ms  = k_uptime_get_32();     // milliseconds since boot
         double   t_sec = (double)t_ms / 1000.0; // seconds
-        csv_log(&logger,
-            t_sec,
-            pos_kf.X_data[0], pos_kf.X_data[1], pos_kf.X_data[2], // dx dy dz
-            pos_kf.X_data[3], pos_kf.X_data[4], pos_kf.X_data[5], // vx vy vz
-            pos_kf.X_data[6], pos_kf.X_data[7], pos_kf.X_data[8], // ax ay az
-            att_kf.X_data[0], att_kf.X_data[1], att_kf.X_data[3], // roll pitch yaw
-            pos_kf.pressure, pos_kf.expected_apogee); // pressure
 
         k_msleep(10); // 10 ms = 100 Hz
     }
