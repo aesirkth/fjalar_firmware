@@ -9,6 +9,7 @@
 #include <zephyr/drivers/uart.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/drivers/sensor.h>
+#include <zephyr/usb/usb_device.h>
 #include <stdio.h>
 #include <math.h>
 
@@ -40,6 +41,9 @@ int main(void) {
 		LOG_ERR("Failed to open data_log.csv");
 		return -1;
 	}
+
+	zusb_enable(NULL);          /* start USB-CDC */
+    printk("USB-CDC ready\n");
 
 	printk("Started\n");
 	fjalar_god.sudo = false;
