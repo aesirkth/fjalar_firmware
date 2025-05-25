@@ -395,7 +395,7 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
                     attitude_filter_accelerometer_ground(&att_kf, &pos_kf, ax, ay, az, imu.t); //only used pre launch
                 }
                 if (pos_kf.X_data[2]>10 && is_thrust_over(&pos_kf, &att_kf, &aerodynamics)){
-                    //void attitude_filter_accelerometer_cruise(&att_kf, &pos_kf, ax, ay, az, time);
+                    //void attitude_filter_accelerometer_cruise(&att_kf, &pos_kf, &aerodynamics, ax, ay, az, time);
                 }
             }
 

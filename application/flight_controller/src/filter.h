@@ -51,7 +51,8 @@ typedef struct attitude_filter {
     bool seeded;
 } attitude_filter_t;
 
-
+struct aerodynamics;                 /* incomplete type        */
+typedef struct aerodynamics aerodynamics_t;   /* handy alias    */
 
 void position_filter_init(position_filter_t *pos_kf, init_t *init);
 void position_filter_accelerometer(position_filter_t *pos_kf, attitude_filter_t *att_kf, float ax, float ay, float az, uint32_t time);
@@ -61,7 +62,7 @@ void position_filter_gps(position_filter_t *pos_kf, float lat, float lon, float 
 void attitude_filter_init(attitude_filter_t *att_kf, init_t *init);
 void attitude_filter_gyroscope(position_filter_t *pos_kf, attitude_filter_t *att_kf, float gx, float gy, float gz, uint32_t time);
 void attitude_filter_accelerometer_ground(attitude_filter_t *att_kf, position_filter_t *pos_kf, float ax, float ay, float az, uint32_t time);
-void attitude_filter_accelerometer_cruise(attitude_filter_t *att_kf, position_filter_t *pos_kf, float ax, float ay, float az, uint32_t time);
+void attitude_filter_accelerometer_cruise(attitude_filter_t *att_kf, position_filter_t *pos_kf, aerodynamics_t *aero, float ax, float ay, float az, uint32_t time);
 
 float filter_get_altitude(position_filter_t *pos_kf);
 float filter_get_velocity(position_filter_t *pos_kf);

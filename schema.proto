@@ -96,7 +96,30 @@ enum Events {
 }
 
 message EventHappened {
-    Events event;
+    Events event = 1;
+}
+
+message HilIn{
+    float ax = 1;
+    float ay = 2;
+    float az = 3;
+
+    float gx = 4;
+    float gy = 5;
+    float gz = 6;
+
+    float p = 7;
+
+    float lon = 8;
+    float lat = 9;
+    float alt = 10;
+
+    uint32 time = 11;
+}
+
+message HilOut{
+
+
 }
 
 message FjalarData {
@@ -114,6 +137,8 @@ message FjalarData {
         ReadyUp ready_up = 12;
         EnterIdle enter_idle = 13;
         TriggerPyro trigger_pyro = 14;
+        HilIn hil_in = 15;
+        HilOut hil_out = 16;
     };
 }
 

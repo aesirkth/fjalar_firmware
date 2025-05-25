@@ -11,6 +11,7 @@ endif()
 
 list(APPEND EXTRA_ZEPHYR_MODULES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/dummysensor
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/hilsensor
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/ms5611
 )
 

@@ -1,6 +1,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <protocol.h>
+#include <hilsensor.h>
 
 #include "commands.h"
 #include "communication.h"
@@ -15,6 +16,7 @@ void handle_enter_idle(enter_idle_t *msg, fjalar_t *fjalar, enum com_channels ch
 void handle_trigger_pyro(trigger_pyro_t *msg, fjalar_t *fjalar, enum com_channels channel);
 void handle_clear_flash(clear_flash_t *msg, fjalar_t *fjalar, enum com_channels channel);
 void handle_read_flash(read_flash_t *msg, fjalar_t *fjalar, enum com_channels channel);
+void handle_hil_in(hil_in_t *msg, fjalar_t *fjalar, enum com_channels channel);
 
 void handle_fjalar_buf(struct protocol_state *ps, fjalar_t *fjalar, uint8_t *buf, int len, enum com_channels channel) {
     fjalar_message_t msg;
@@ -55,7 +57,10 @@ void handle_fjalar_message(fjalar_message_t *msg, fjalar_t *fjalar, enum com_cha
         case FJALAR_DATA_READ_FLASH_TAG:
             handle_read_flash(&msg->data.data.read_flash, fjalar, channel);
             break;
-
+        
+        case FJALAR_DATA_HIL_IN_TAG:
+            handle_hil_in(&msg->data.data.hil_in, fjalar, channel);
+            break;
         default:
             LOG_ERR("Unsupported message: %d", msg->data.which_data);
     }
@@ -122,3 +127,29 @@ void handle_read_flash(read_flash_t *msg, fjalar_t *fjalar, enum com_channels ch
     read_flash(fjalar, resp.data.data.flash_data.data.bytes, msg->start_index, msg->length);
     send_response(fjalar, &resp, channel);
 }
+
+void handle_hil_in(hil_in_t *msg, fjalar_t *fjalar, enum com_channels channel){
+    #if DT_ALIAS_EXISTS(dummysensor) // change name ltr
+    const struct device *const hilsensor_dev = DEVICE_DT_GET(DT_ALIAS(hilsensor));
+    struct hil_data_t hil_data = {
+        .ax = msg->ax;
+        .ay = msg->ay;
+        .az = msg->az;
+
+        .gx = msg->gx;
+        .gy = msg->gy;
+        .gz = msg->gz;
+
+        .p = msg->p;
+
+        .lon = msg->lon;
+        .lat = msg->lat;
+        .alt = msg->alt;
+    }
+
+    // call hillsensor_feed with the new data you were just given
+    #endif
+    
+    
+}
+

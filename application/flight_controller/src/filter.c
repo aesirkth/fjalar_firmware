@@ -696,7 +696,7 @@ void attitude_filter_accelerometer_ground(attitude_filter_t *att_kf, position_fi
     zsl_mtx_mult(&I3KH, &att_kf->P, &att_kf->P);
 };
 
-void attitude_filter_accelerometer_cruise(attitude_filter_t *att_kf, position_filter_t *pos_kf, float ax, float ay, float az, uint32_t time){
+void attitude_filter_accelerometer_cruise(attitude_filter_t *att_kf, position_filter_t *pos_kf, aerodynamics_t *aerodynamics, float ax, float ay, float az, uint32_t time){
     // z matrix
     zsl_real_t z_data[3] = {
         ax,
@@ -720,6 +720,8 @@ void attitude_filter_accelerometer_cruise(attitude_filter_t *att_kf, position_fi
         .sz_cols = 3,
         .data = I3_data
     };
+
+    float drag = aerodynamics->drag_data[0]; // temp
 
     // EKF STEPS
     // create h(x)

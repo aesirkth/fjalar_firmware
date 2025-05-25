@@ -18,9 +18,10 @@
         // data-flash = &flashsim;
     };
 
-    dummysensor: dummysensor {
-        compatible = "aesir,dummysensor";
+    dummysensor: dummysensor { 
+        compatible = "aesir,hilsensor";
         status = "okay";
+        // to be changed ltr
     };
 
     leds {

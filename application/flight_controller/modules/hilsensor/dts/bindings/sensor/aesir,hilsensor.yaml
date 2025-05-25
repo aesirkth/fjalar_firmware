@@ -1,0 +1,7 @@
+
+description: |
+  Hardware in the loop sensor
+
+compatible: "aesir,hilsensor"
+
+include: base.yaml
