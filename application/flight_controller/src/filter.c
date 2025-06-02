@@ -696,6 +696,7 @@ void attitude_filter_accelerometer_ground(attitude_filter_t *att_kf, position_fi
     zsl_mtx_mult(&I3KH, &att_kf->P, &att_kf->P);
 };
 
+// not used, it loves to diverge since it is dependent on the state it is correcting, one wrong correction and we die :(
 void attitude_filter_accelerometer_cruise(attitude_filter_t *att_kf, position_filter_t *pos_kf, aerodynamics_t *aerodynamics, float ax, float ay, float az, uint32_t time){
     // z matrix
     zsl_real_t z_data[3] = {

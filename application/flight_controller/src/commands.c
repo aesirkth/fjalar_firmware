@@ -147,7 +147,7 @@ void handle_hil_in(hil_in_t *msg, fjalar_t *fjalar, enum com_channels channel){
         .alt = msg->alt;
     }
 
-    // call hillsensor_feed with the new data you were just given
+    // call hilsensor_feed with the new data you were just given
     #endif
     
     
