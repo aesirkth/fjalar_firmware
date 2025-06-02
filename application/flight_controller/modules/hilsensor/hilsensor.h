@@ -1,5 +1,3 @@
-static int hilsensor_feed(const struct device *dev, hil_data_t *hil);
-
 typedef struct hil_data {
     float ax;
     float ay;
@@ -17,3 +15,5 @@ typedef struct hil_data {
 
     uint32_t time;
 } hil_data_t;
+
+static int hilsensor_feed(const struct device *dev, hil_data_t *hil);

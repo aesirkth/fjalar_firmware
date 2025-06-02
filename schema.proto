@@ -118,8 +118,9 @@ message HilIn{
 }
 
 message HilOut{
-
-
+    float airbrake_percentage = 1;
+    bool main_deployed = 2;
+    bool drogue_deployed = 3;
 }
 
 message FjalarData {
