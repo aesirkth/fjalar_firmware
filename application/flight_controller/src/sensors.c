@@ -219,7 +219,7 @@ void barometer_thread(fjalar_t *fjalar, void *p2, void *p3) {
 		q_entry.t = k_uptime_get_32();
 		q_entry.pressure = sensor_value_to_float(&pressure);
         delta_P = q_entry.pressure*1000 - pressure_previous;
-        if (abs(delta_P) <= threshold) {
+        if (fabsf(delta_P) <= threshold) {
 		    ret = k_msgq_put(&pressure_msgq, &q_entry, K_NO_WAIT);
 		    if (ret != 0) {
 			    LOG_ERR("Could not write to pressure msgq");
