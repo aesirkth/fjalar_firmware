@@ -191,6 +191,9 @@ void barometer_thread(fjalar_t *fjalar, void *p2, void *p3) {
 		return;
 	}
 	int ret;
+    float pressure_previous = 0;
+    float inc_threshold = 51;
+    float dec_threshold = -57;
 	struct sensor_value osr;
 	osr.val1 = 2048;
 	osr.val2 = 0;
@@ -206,6 +209,7 @@ void barometer_thread(fjalar_t *fjalar, void *p2, void *p3) {
 			LOG_ERR("Could not fetch barometer sample");
 			continue;
 		}
+        
 		struct sensor_value pressure;
 		ret = sensor_channel_get(baro_dev, SENSOR_CHAN_PRESS, &pressure);
 		if (ret != 0) {
@@ -213,23 +217,29 @@ void barometer_thread(fjalar_t *fjalar, void *p2, void *p3) {
 			continue;
 		}
 		LOG_DBG("read pressure: %f", sensor_value_to_float(&pressure));
+        
 		struct pressure_queue_entry q_entry;
 		q_entry.t = k_uptime_get_32();
 		q_entry.pressure = sensor_value_to_float(&pressure);
-		ret = k_msgq_put(&pressure_msgq, &q_entry, K_NO_WAIT);
-		if (ret != 0) {
-			LOG_ERR("Could not write to pressure msgq");
-		}
-		ret = zbus_chan_pub(&pressure_zchan, &q_entry, K_MSEC(100));
-		if (ret != 0) {
-			LOG_ERR("Could not publish pressure to zbus");
-		}
-		fjalar_message_t msg;
-		msg.time = k_uptime_get_32();
-		msg.has_data = true;
-		msg.data.which_data = FJALAR_DATA_PRESSURE_READING_TAG;
-		msg.data.data.pressure_reading.pressure = sensor_value_to_float(&pressure);;
-		send_message(fjalar, &msg, MSG_PRIO_LOW);
+        delta_P = q_entry.pressure*1000 - pressure_previous;
+        
+        if (delta_P <= inc_threshold) && (delta_P >= dec_threshold) { 
+		    ret = k_msgq_put(&pressure_msgq, &q_entry, K_NO_WAIT);
+		    if (ret != 0) {
+			    LOG_ERR("Could not write to pressure msgq");
+		    }
+		    ret = zbus_chan_pub(&pressure_zchan, &q_entry, K_MSEC(100));
+		    if (ret != 0) {
+			    LOG_ERR("Could not publish pressure to zbus");
+		    }
+		    fjalar_message_t msg;
+		    msg.time = k_uptime_get_32();
+		    msg.has_data = true;
+		    msg.data.which_data = FJALAR_DATA_PRESSURE_READING_TAG;
+		    msg.data.data.pressure_reading.pressure = sensor_value_to_float(&pressure);;
+		    send_message(fjalar, &msg, MSG_PRIO_LOW);
+        }
+        pressure_previous = q_entry.pressure*1000;
 	}
 }
 
