@@ -17,6 +17,7 @@ The flight state script serves the following purpose:
 #include "flight_state.h"
 #include "actuation.h"
 #include "com_lora.h"
+#include "com_can.h"
 
 LOG_MODULE_REGISTER(flight, LOG_LEVEL_INF);
 
@@ -80,7 +81,7 @@ static void start_pyro_camera(fjalar_t *fjalar){
 }
 */
 
-static void evaluate_state(fjalar_t *fjalar, init_t *init, state_t *state, position_filter_t *pos_kf, aerodynamics_t *aerodynamics, lora_t *lora) {
+static void evaluate_state(fjalar_t *fjalar, init_t *init, state_t *state, position_filter_t *pos_kf, aerodynamics_t *aerodynamics, lora_t *lora, can_t *can) {
     float az = pos_kf->X_data[8];
     float vz = pos_kf->X_data[5];
     float z  = pos_kf->X_data[2];
@@ -90,11 +91,16 @@ static void evaluate_state(fjalar_t *fjalar, init_t *init, state_t *state, posit
 
     switch (state->flight_state) {
     case STATE_IDLE:
-        if (lora->LORA_READY_INITIATE_FJALAR){
+        // Check both LoRa and CAN for ready/arm command (redundancy)
+        if (lora->LORA_READY_INITIATE_FJALAR || (can != NULL && can->CAN_GCS_READY_INITIATE_FJALAR)){
             state->flight_state = STATE_AWAITING_INIT;
             init_init(&fjalar_god); // see mural documentation
             init_sensors(&fjalar_god); // see mural documentation
-            LOG_WRN("State transitioned from STATE_IDLE to STATE_AWAITING_INIT due to LoRa command");
+            if (lora->LORA_READY_INITIATE_FJALAR) {
+                LOG_WRN("State transitioned from STATE_IDLE to STATE_AWAITING_INIT due to LoRa command");
+            } else {
+                LOG_WRN("State transitioned from STATE_IDLE to STATE_AWAITING_INIT due to CAN command");
+            }
         }
         break;
     case STATE_AWAITING_INIT:
@@ -104,9 +110,14 @@ static void evaluate_state(fjalar_t *fjalar, init_t *init, state_t *state, posit
         } // change for lora struct
         break;
     case STATE_INITIATED:
-        if (lora->LORA_READY_LAUNCH_FJALAR){
+        // Check both LoRa and CAN for launch command (redundancy)
+        if (lora->LORA_READY_LAUNCH_FJALAR || (can != NULL && can->CAN_GCS_READY_LAUNCH_FJALAR)){
             state->flight_state = STATE_AWAITING_LAUNCH;
-            LOG_WRN("State transitioned from STATE_INITIATED to STATE_AWAITING_LAUNCH due to LoRa command");
+            if (lora->LORA_READY_LAUNCH_FJALAR) {
+                LOG_WRN("State transitioned from STATE_INITIATED to STATE_AWAITING_LAUNCH due to LoRa command");
+            } else {
+                LOG_WRN("State transitioned from STATE_INITIATED to STATE_AWAITING_LAUNCH due to CAN command");
+            }
         }
         break;
     case STATE_AWAITING_LAUNCH:
@@ -209,12 +220,13 @@ void flight_state_thread(fjalar_t *fjalar, void *p2, void *p1) {
     aerodynamics_t    *aerodynamics = fjalar->ptr_aerodynamics;
     state_t           *state = fjalar->ptr_state;
     lora_t            *lora = fjalar->ptr_lora;
+    can_t             *can = fjalar->ptr_can;
 
     state->flight_state = STATE_IDLE;
     state->velocity_class = VELOCITY_SUBSONIC;
 
     while (true) {
-        evaluate_state(fjalar, init, state, pos_kf, aerodynamics, lora);
+        evaluate_state(fjalar, init, state, pos_kf, aerodynamics, lora, can);
         evaluate_event(fjalar, state, pos_kf);
         evaluate_velocity(aerodynamics, state);
         k_msleep(10); 

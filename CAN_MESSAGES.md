@@ -120,8 +120,8 @@ This message is **essential** for Fjalar's operation because:
 |---------|----------|--------|--------|
 | **0x67F/0x57F** (Fjalar→Loki TX) | ✅ DONE | Critical for airbrake control | - |
 | **0x6FF** (Loki→Fjalar RX) | ✅ DONE | Telemetry (optional) | - |
-| **0x700** (GCS→Fjalar: Ready/Arm) | ⚠️ MEDIUM | Redundancy for critical command | Low |
-| **0x701** (GCS→Fjalar: Launch) | ⚠️ MEDIUM | Redundancy for critical command | Low |
+| **0x700** (GCS→Fjalar: Ready/Arm) | ✅ DONE | Redundancy for critical command | - |
+| **0x701** (GCS→Fjalar: Launch) | ✅ DONE | Redundancy for critical command | - |
 | **0x720** (Fjalar→GCS: Status) | 📊 LOW | Telemetry only | Medium |
 | **0x721-0x731** (Fjalar→GCS: Telemetry) | 📊 LOW | Telemetry only | High |
 | **USB CAN Protocol** | ❌ SKIP | Existing USB protocol works | High |
@@ -130,14 +130,21 @@ This message is **essential** for Fjalar's operation because:
 
 ## Recommended Implementation Plan
 
-### Phase 1: Critical Redundancy (Recommended)
-1. Implement **0x700** (Ready/Arm) - Provides CAN backup for LoRa command
-2. Implement **0x701** (Launch) - Provides CAN backup for LoRa command
+### Phase 1: Critical Redundancy ✅ **COMPLETED**
+1. ✅ Implemented **0x700** (Ready/Arm) - Provides CAN backup for LoRa command
+2. ✅ Implemented **0x701** (Launch) - Provides CAN backup for LoRa command
 
-**Benefits**: 
+**Implementation Status**: 
+- CAN filters registered for both messages
+- RX callbacks implemented and functional
+- Flight state machine updated to check both LoRa and CAN commands
+- All safety features (validation, logging, null checks) in place
+
+**Benefits Achieved**: 
 - Redundant communication paths for safety-critical commands
 - Lower latency than LoRa
 - Simple implementation (boolean flags)
+- Asynchronous command reception via CAN callbacks
 
 ### Phase 2: Essential Telemetry (Optional)
 3. Implement **0x720** (Flight Status) - Consolidated status for ground ops
@@ -261,7 +268,7 @@ float loki_battery_voltage = data[3] / 10.0f;
 
 ## Ground Control Station (GCS) Messages
 
-The following messages are specified for communication with the Ground Control Station. **All GCS messages are currently NOT IMPLEMENTED** in the flight controller firmware. These messages are documented here for reference and future implementation.
+The following messages are specified for communication with the Ground Control Station. GCS command messages (0x700, 0x701) are **IMPLEMENTED** as of Phase 1. Telemetry messages (0x720-0x731) are not yet implemented.
 
 ### GCS to Fjalar (RX - Commands)
 
@@ -270,24 +277,91 @@ These messages are received by the flight controller from the Ground Control Sta
 #### Ready/Arm Fjalar
 
 **CAN ID**: `0x700`  
-**Status**: ❌ **NOT IMPLEMENTED**
+**Status**: ✅ **IMPLEMENTED** (Phase 1)
 
 | Bit | Description | Type | Values |
 |-----|-------------|------|--------|
 | 0 | Ready/arm Fjalar | bool | `0` = not ready, `1` = ready/armed |
 
-**Note**: Currently, the ready/arm functionality is implemented via LoRa communication (`LORA_READY_INITIATE_FJALAR`), not CAN.
+**DLC**: 1 byte minimum (only bit 0 is used)
+
+**Implementation Details**:
+- Message is received asynchronously via CAN RX callback
+- Command is stored in `can_t.CAN_GCS_READY_INITIATE_FJALAR`
+- Provides redundancy: Flight state machine checks both LoRa (`LORA_READY_INITIATE_FJALAR`) and CAN commands
+- If either LoRa or CAN sends the command, the state transition from `STATE_IDLE` to `STATE_AWAITING_INIT` occurs
+- Timestamp of last reception is stored in `gcs_ready_initiate_latest_rx_time` for monitoring
+
+**Example Encoding**:
+```c
+uint8_t data[1];
+data[0] = ready_arm ? 0x01 : 0x00;  // Set bit 0
+```
 
 #### Launch Command
 
 **CAN ID**: `0x701`  
-**Status**: ❌ **NOT IMPLEMENTED**
+**Status**: ✅ **IMPLEMENTED** (Phase 1)
 
 | Bit | Description | Type | Values |
 |-----|-------------|------|--------|
 | 0 | Launch command | bool | `0` = no launch, `1` = launch |
 
-**Note**: Currently, the launch command is implemented via LoRa communication (`LORA_READY_LAUNCH_FJALAR`), not CAN.
+**DLC**: 1 byte minimum (only bit 0 is used)
+
+**Implementation Details**:
+- Message is received asynchronously via CAN RX callback
+- Command is stored in `can_t.CAN_GCS_READY_LAUNCH_FJALAR`
+- Provides redundancy: Flight state machine checks both LoRa (`LORA_READY_LAUNCH_FJALAR`) and CAN commands
+- If either LoRa or CAN sends the command, the state transition from `STATE_INITIATED` to `STATE_AWAITING_LAUNCH` occurs
+- Timestamp of last reception is stored in `gcs_ready_launch_latest_rx_time` for monitoring
+
+**Example Encoding**:
+```c
+uint8_t data[1];
+data[0] = launch ? 0x01 : 0x00;  // Set bit 0
+```
+
+### Phase 1 Implementation: Redundant Command Reception
+
+**How It Works**:
+
+The Phase 1 implementation provides redundant communication paths for critical commands:
+
+1. **Asynchronous Reception**: CAN messages are received via interrupt-driven callbacks (`can_rx_gcs_ready_arm()` and `can_rx_gcs_launch()`), ensuring low-latency command processing.
+
+2. **Redundant Command Checking**: The flight state machine evaluates commands using OR logic:
+   ```c
+   // Ready/Arm check
+   if (lora->LORA_READY_INITIATE_FJALAR || can->CAN_GCS_READY_INITIATE_FJALAR) {
+       // Transition to STATE_AWAITING_INIT
+   }
+   
+   // Launch check
+   if (lora->LORA_READY_LAUNCH_FJALAR || can->CAN_GCS_READY_LAUNCH_FJALAR) {
+       // Transition to STATE_AWAITING_LAUNCH
+   }
+   ```
+
+3. **State Machine Integration**: The flight state thread checks both LoRa and CAN flags every 10ms, ensuring commands are processed quickly regardless of which communication channel delivers them.
+
+4. **Safety Features**:
+   - **Static Initialization**: CAN structure is zero-initialized, ensuring flags start as `false` (safe state)
+   - **DLC Validation**: Callbacks validate message length before processing
+   - **Null Pointer Checks**: State evaluation includes null checks for CAN pointer
+   - **Logging**: Each command reception is logged with the command value for debugging
+
+5. **Benefits**:
+   - **Redundancy**: If LoRa fails, CAN can still deliver critical commands
+   - **Lower Latency**: CAN provides faster, more deterministic communication than LoRa
+   - **Reliability**: Multiple communication paths increase overall system reliability
+   - **Ground Operations**: Enables direct CAN-based control from ground equipment
+
+**Code Structure**:
+- CAN filters registered in `can_cb_priv_init()` during CAN thread startup
+- RX callbacks update `can_t` structure fields immediately upon message reception
+- Flight state thread (`flight_state_thread()`) checks flags synchronously during state evaluation
+- Log messages indicate which communication channel (LoRa or CAN) triggered state transitions
 
 ### Fjalar to GCS (TX - Telemetry)
 
@@ -477,8 +551,11 @@ The flight controller can communicate CAN messages over USB CDC ACM. CAN packets
 
 The flight controller uses CAN filters to receive messages:
 
-- **Loki filter**: ID `0x6FF` with mask `0x7FF` (matches all 11 bits)
-- **GCS filters**: Not yet implemented (will need filters for IDs `0x700` and `0x701`)
+- **Loki filter**: ID `0x6FF` with mask `0x7FF` (matches all 11 bits) - ✅ Implemented
+- **GCS Ready/Arm filter**: ID `0x700` with mask `0x7FF` (matches all 11 bits) - ✅ Implemented (Phase 1)
+- **GCS Launch filter**: ID `0x701` with mask `0x7FF` (matches all 11 bits) - ✅ Implemented (Phase 1)
+
+All filters are registered during CAN initialization in `can_cb_priv_init()`.
 
 ---
 

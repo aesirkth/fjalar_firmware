@@ -52,6 +52,18 @@ const struct can_filter filter_rx_loki = {
     .mask = MATCH_ALL_STD_ID
 };
 
+const struct can_filter filter_rx_gcs_ready_arm = {
+    .flags = 0,
+    .id = 0x700,
+    .mask = MATCH_ALL_STD_ID
+};
+
+const struct can_filter filter_rx_gcs_launch = {
+    .flags = 0,
+    .id = 0x701,
+    .mask = MATCH_ALL_STD_ID
+};
+
 /*
 const struct can_filter filter_rx_sigurd = {
     .flags = 0, 
@@ -138,6 +150,40 @@ void can_rx_loki(const struct device *const can_dev, struct can_frame *frame, vo
     can->loki_latest_rx_time = k_uptime_get_32();
 }
 
+void can_rx_gcs_ready_arm(const struct device *const can_dev, struct can_frame *frame, void *user_data){
+    can_t *can = user_data;
+    const uint8_t *data = frame->data;
+
+    if (frame->dlc < 1) {
+        LOG_ERR("Wrong dlc can rx gcs ready/arm");
+        return;
+    }
+
+    // bit 0: ready/arm fjalar
+    bool ready_arm = (data[0] & 0x01) != 0;
+    can->CAN_GCS_READY_INITIATE_FJALAR = ready_arm;
+    can->gcs_ready_initiate_latest_rx_time = k_uptime_get_32();
+    
+    LOG_INF("CAN GCS Ready/Arm received: %d", ready_arm);
+}
+
+void can_rx_gcs_launch(const struct device *const can_dev, struct can_frame *frame, void *user_data){
+    can_t *can = user_data;
+    const uint8_t *data = frame->data;
+
+    if (frame->dlc < 1) {
+        LOG_ERR("Wrong dlc can rx gcs launch");
+        return;
+    }
+
+    // bit 0: launch
+    bool launch = (data[0] & 0x01) != 0;
+    can->CAN_GCS_READY_LAUNCH_FJALAR = launch;
+    can->gcs_ready_launch_latest_rx_time = k_uptime_get_32();
+    
+    LOG_INF("CAN GCS Launch received: %d", launch);
+}
+
 void can_rx_sigurd(const struct device *const can_dev, struct can_frame *frame, void *user_data){
     // stuff
 }
@@ -149,6 +195,12 @@ static int can_cb_priv_init(can_t *can){
     int err;
     err = can_add_rx_filter(can_dev, can_rx_loki, can, &filter_rx_loki);
     if (err) {LOG_ERR("adding loki filter failed: %d", err);}else{LOG_WRN("adding loki filter success");}
+
+    err = can_add_rx_filter(can_dev, can_rx_gcs_ready_arm, can, &filter_rx_gcs_ready_arm);
+    if (err) {LOG_ERR("adding gcs ready/arm filter failed: %d", err);}else{LOG_WRN("adding gcs ready/arm filter success");}
+
+    err = can_add_rx_filter(can_dev, can_rx_gcs_launch, can, &filter_rx_gcs_launch);
+    if (err) {LOG_ERR("adding gcs launch filter failed: %d", err);}else{LOG_WRN("adding gcs launch filter success");}
 
     //err = can_add_rx_filter(can_dev, can_rx_sigurd, can, &filter_rx_sigurd);
     //if (err) {LOG_ERR("adding sigurd filter failed: %d", err);}
