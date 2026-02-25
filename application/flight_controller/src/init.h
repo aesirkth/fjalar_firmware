@@ -2,13 +2,14 @@
 
 #define IMU_INIT_N 50
 #define BARO_INIT_N 50
-#define GPS_INIT_N 0
+#define GPS_INIT_N 10
 
 typedef struct fjalar fjalar_t;
 typedef struct position_filter position_filter_t;
 typedef struct attitude_filter attitude_filter_t;
 typedef struct aerodynamics aerodynamics_t;
 typedef struct state state_t;
+extern struct k_sem init_complete_sem;
 
 typedef struct init{
     // arrays

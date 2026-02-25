@@ -2,6 +2,7 @@
 #include <protocol.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/drivers/lora.h>
+#include <zephyr/zbus/zbus.h>
 
 #include "init.h"
 #include "filter.h"
@@ -57,7 +58,7 @@ void init_com_lora(fjalar_t *fjalar){
 } 
 
 int lora_configure(const struct device *dev, bool transmit) {
-	static uint8_t current_mode = -1;
+	static int8_t current_mode = -1;
 	if (current_mode == transmit) {
 		LOG_DBG("Mode already configured");
 		return 0;
@@ -169,45 +170,42 @@ void lora_msg_enqueue(fjalar_message_t *msg){
 }
 
 void lora_msg_enqueue_thread(fjalar_t *fjalar, void *p2, void *p3){
-	init_t            *init  = fjalar->ptr_init;
-    position_filter_t *pos_kf = fjalar->ptr_pos_kf;
-    attitude_filter_t *att_kf = fjalar->ptr_att_kf;
-    aerodynamics_t    *aerodynamics = fjalar->ptr_aerodynamics;
-    state_t           *state = fjalar->ptr_state;
-    control_t         *control = fjalar->ptr_control;
-    can_t             *can = fjalar->ptr_can;
-	lora_t            *lora = fjalar->ptr_lora;
-
 	//lora->LORA_READY_INITIATE_FJALAR = true; // for testing without tracker DO NOT FORGET TO REMOVE
 	//lora->LORA_READY_LAUNCH_FJALAR = true;
 
 	while (true){
-		// gps
-		fjalar_message_t msg_gps = {
-			.time = k_uptime_get_32(),
-			.has_data = true,
-			.data = {
-				.which_data = FJALAR_DATA_GNSS_POSITION_TAG,
-				.data.gnss_position = {
-					.latitude = pos_kf->raw_gps_lat,
-					.longitude = pos_kf->raw_gps_lon,
-					.altitude = pos_kf->raw_gps_alt,
+		struct filter_output_msg filter_msg;
+		struct flight_state_output_msg fs_msg;
+
+		int ret1 = zbus_chan_read(&filter_output_zchan, &filter_msg, K_NO_WAIT);
+		int ret2 = zbus_chan_read(&flight_state_output_zchan, &fs_msg, K_NO_WAIT);
+		if (ret1 == 0 && ret2 == 0) {
+			// gps
+			fjalar_message_t msg_gps = {
+				.time = k_uptime_get_32(),
+				.has_data = true,
+				.data = {
+					.which_data = FJALAR_DATA_GNSS_POSITION_TAG,
+					.data.gnss_position = {
+						.latitude = filter_msg.raw_gps[0],
+						.longitude = filter_msg.raw_gps[1],
+						.altitude = filter_msg.raw_gps[2],
+					},
 				},
-			},
-		};
-		lora_msg_enqueue(&msg_gps);
+			};
+			lora_msg_enqueue(&msg_gps);
 
-		// FlightState
-		fjalar_message_t msg_flight_state = {
-			.time = k_uptime_get_32(),
-			.has_data = true,
-			.data = {
-				.which_data = FJALAR_DATA_FLIGHT_STATE_TAG,
-				.data.flight_state = state->flight_state
-			},
-		};
-		lora_msg_enqueue(&msg_flight_state);
-
+			// FlightState
+			fjalar_message_t msg_flight_state = {
+				.time = k_uptime_get_32(),
+				.has_data = true,
+				.data = {
+					.which_data = FJALAR_DATA_FLIGHT_STATE_TAG,
+					.data.flight_state = fs_msg.flight_state
+				},
+			};
+			lora_msg_enqueue(&msg_flight_state);
+		}
 		k_msleep(5000);
 	}
 }

@@ -1,0 +1,41 @@
+-- west build: making build dir /home/laura/fjalar_firmware/build pristine
+-- west build: generating a build system
+Loading Zephyr default modules (Zephyr base).
+-- Application: /home/laura/fjalar_firmware/application/flight_controller
+-- CMake version: 3.28.3
+-- Found Python3: /home/laura/fjalar_firmware/.venv/bin/python (found suitable version "3.12.3", minimum required is "3.10") found components: Interpreter 
+-- Cache files will be written to: /home/laura/.cache/zephyr
+-- Zephyr version: 4.1.0 (/home/laura/fjalar_firmware/deps/zephyr)
+-- Found west (found suitable version "1.5.0", minimum required is "0.14.0")
+-- Board: fjalar, qualifiers: stm32u575xx
+-- ZEPHYR_TOOLCHAIN_VARIANT not set, trying to locate Zephyr SDK
+-- Found host-tools: zephyr 0.17.0 (/home/laura/zephyr-sdk-0.17.0)
+-- Found toolchain: zephyr 0.17.0 (/home/laura/zephyr-sdk-0.17.0)
+-- Found Dtc: /home/laura/zephyr-sdk-0.17.0/sysroots/x86_64-pokysdk-linux/usr/bin/dtc (found suitable version "1.6.0", minimum required is "1.4.6") 
+-- Found BOARD.dts: /home/laura/fjalar_firmware/application/flight_controller/boards/vendor/fjalar/fjalar.dts
+-- Found devicetree overlay: /home/laura/fjalar_firmware/application/flight_controller/boards/fjalar.overlay
+-- Generated zephyr.dts: /home/laura/fjalar_firmware/build/zephyr/zephyr.dts
+-- Generated pickled edt: /home/laura/fjalar_firmware/build/zephyr/edt.pickle
+-- Generated devicetree_generated.h: /home/laura/fjalar_firmware/build/zephyr/include/generated/zephyr/devicetree_generated.h
+-- Including generated dts.cmake file: /home/laura/fjalar_firmware/build/zephyr/dts.cmake
+
+/home/laura/fjalar_firmware/application/flight_controller/prj.conf:10: warning: attempt to assign the value 'n' to the undefined symbol USB_UART_CONSOLE
+Parsing /home/laura/fjalar_firmware/application/flight_controller/Kconfig
+Loaded configuration '/home/laura/fjalar_firmware/application/flight_controller/boards/vendor/fjalar/fjalar_defconfig'
+Merged configuration '/home/laura/fjalar_firmware/application/flight_controller/prj.conf'
+Merged configuration '/home/laura/fjalar_firmware/application/flight_controller/boards/fjalar.conf'
+Merged configuration '/home/laura/fjalar_firmware/application/flight_controller/preferences.conf'
+
+error: Aborting due to Kconfig warnings
+
+CMake Error at /home/laura/fjalar_firmware/deps/zephyr/cmake/modules/kconfig.cmake:396 (message):
+  command failed with return code: 1
+Call Stack (most recent call first):
+  /home/laura/fjalar_firmware/deps/zephyr/cmake/modules/zephyr_default.cmake:133 (include)
+  /home/laura/fjalar_firmware/deps/zephyr/share/zephyr-package/cmake/ZephyrConfig.cmake:66 (include)
+  /home/laura/fjalar_firmware/deps/zephyr/share/zephyr-package/cmake/ZephyrConfig.cmake:92 (include_boilerplate)
+  CMakeLists.txt:18 (find_package)
+
+
+-- Configuring incomplete, errors occurred!
+FATAL ERROR: command exited with status 1: /usr/bin/cmake -DWEST_PYTHON=/home/laura/fjalar_firmware/.venv/bin/python -B/home/laura/fjalar_firmware/build -GNinja -DBOARD=fjalar -S/home/laura/fjalar_firmware/application/flight_controller

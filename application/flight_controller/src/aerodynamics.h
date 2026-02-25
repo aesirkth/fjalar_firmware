@@ -1,14 +1,40 @@
 #pragma once
 
 #include <zsl/interp.h>   /* zsl_interp_lin_y_arr() */
+#include <zephyr/kernel.h>
 #include "filter.h"
+#include "flight_state.h"
+#include <zephyr/zbus/zbus.h>
+
+ZBUS_CHAN_DECLARE(aero_chan);
 
 typedef struct fjalar fjalar_t;
-typedef struct init t;
-typedef struct position_filter position_filter_t;
-typedef struct attitude_filter attitude_filter_t;
-typedef struct state state_t;
+//typedef struct init init_t;
+//typedef struct state state_t;
 
+typedef struct aerodynamics_msg_matrix {
+    float data[3];  // 3x1 vector
+    size_t sz_rows;
+    size_t sz_cols;
+} aerodynamics_msg_matrix;
+
+typedef struct aerodynamics_output_msg {
+    uint32_t timestamp;
+    float drag_data[3]; // acceleration, not force
+    struct aerodynamics_msg_matrix drag; // drag induced acceleration in local frame
+    float drag_norm;
+    float expected_apogee;
+    uint8_t thrust_bool;
+    float g_physics;
+    float temperature_kelvin;
+    float specific_gas_constant_air;
+    float heat_capacity_ratio_air;
+    float v_sound;
+    float mach_number;
+} aerodynamics_output_msg;
+
+
+/*
 typedef struct aerodynamics {
     zsl_real_t drag_data[3]; // acceleration, not force!
     struct zsl_mtx drag; // drag induced acceleration in local frame
@@ -22,7 +48,7 @@ typedef struct aerodynamics {
     float heat_capacity_ratio_air;
     float v_sound;
     float mach_number;
-} aerodynamics_t;
+} aerodynamics_t; */
 
 void init_aerodynamics(fjalar_t *fjalar);
 
@@ -171,7 +197,7 @@ static const struct zsl_interp_xy cd_tbl[] = {
 static inline zsl_real_t cd_at(zsl_real_t v)
 {
     zsl_real_t cd;
-    zsl_interp_lin_y_arr(cd_tbl, CD_N, v, &cd);
+    zsl_interp_lin_y_arr((struct zsl_interp_xy *)cd_tbl, CD_N, v, &cd);
     return cd;
 }
 
@@ -193,7 +219,7 @@ static inline zsl_real_t air_density_at(zsl_real_t z)
     if (z < 0.0f) z = 0.0f;
 
     zsl_real_t rho;
-    zsl_interp_lin_y_arr(rho_tbl, RHO_N, z, &rho);
+    zsl_interp_lin_y_arr((struct zsl_interp_xy *)rho_tbl, RHO_N, z, &rho);
     return rho;
 }
 

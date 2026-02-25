@@ -10,6 +10,7 @@ sensor information via usb/uart.
 #include <zephyr/console/tty.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/zbus/zbus.h>
 #include <protocol.h>
 #include <zephyr/drivers/flash.h>
 
@@ -20,6 +21,7 @@ sensor information via usb/uart.
 #include "com_lora.h"
 #include "com_uart.h"
 #include "com_usb.h"
+#include "flight_state.h"
 #include "hilsensor.h"
 
 LOG_MODULE_REGISTER(com_master, LOG_LEVEL_INF);
@@ -219,8 +221,15 @@ void send_message(fjalar_t *fjalar, state_t *state, fjalar_message_t *msg, enum 
 	LOG_DBG("sending message w/ size %d", size);
 	switch(prio) {
 		case MSG_PRIO_LOW:
-			if (state->flight_state == STATE_IDLE || state->flight_state == STATE_LANDED) {
-				break;
+			struct flight_state_output_msg fs_msg;
+			int ret = zbus_chan_read(&flight_state_output_zchan, &fs_msg, K_NO_WAIT);
+			if (ret != 0) {
+				LOG_DBG("No flight state message available, skipping low-prio send");
+				return;
+			}
+
+			if (fs_msg.flight_state == STATE_IDLE || fs_msg.flight_state == STATE_LANDED) {
+				return;
 			}
 			#if DT_ALIAS_EXISTS(data_flash)
 			if (k_msgq_put(&flash_msgq, &pbuf, K_NO_WAIT)) {
@@ -307,6 +316,8 @@ void send_response(fjalar_t *fjalar, fjalar_message_t *msg, enum com_channels ch
 				LOG_WRN("could not insert data usb msgq");
 			}
 			#endif
+			break;
+		case COM_CHAN_MAX: // ignore
 			break;
 	}
 }

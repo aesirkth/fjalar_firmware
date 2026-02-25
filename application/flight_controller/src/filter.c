@@ -13,14 +13,14 @@ For this we use the linear Kalman filter (KF) and the nonlinear extended Kalman 
 #include <zsl/statistics.h>
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/sensor.h>
+#include <zephyr/zbus/zbus.h>
 
 #include "fjalar.h"
 #include "sensors.h"
 #include "init.h"
 #include "filter.h"
-#include "aerodynamics.h"
 #include "flight_state.h"
-#include "control.h"
+// #include "control.h"
 
 LOG_MODULE_REGISTER(filter, LOG_LEVEL_INF);
 
@@ -28,7 +28,13 @@ LOG_MODULE_REGISTER(filter, LOG_LEVEL_INF);
 #define FILTER_THREAD_STACK_SIZE 4096
 
 void filter_thread(fjalar_t *fjalar, void *p2, void *p1);
-
+ZBUS_CHAN_DEFINE(filter_output_zchan, /* Name */
+		struct filter_output_msg, /* Message type */
+		NULL, /* Validator */
+		NULL, /* User Data */
+		ZBUS_OBSERVERS_EMPTY, /* observers */
+		ZBUS_MSG_INIT(.timestamp = 0) /* Initial value */
+);
 K_THREAD_STACK_DEFINE(filter_thread_stack, FILTER_THREAD_STACK_SIZE);
 struct k_thread filter_thread_data;
 k_tid_t filter_thread_id;
@@ -635,7 +641,7 @@ void attitude_filter_gyroscope(position_filter_t *pos_kf, attitude_filter_t *att
 };
 
 
-void attitude_filter_accelerometer_ground(init_t *init, attitude_filter_t *att_kf, position_filter_t *pos_kf, aerodynamics_t *aerodynamics, float ax, float ay, float az, uint32_t time){
+void attitude_filter_accelerometer_ground(init_t *init, attitude_filter_t *att_kf, position_filter_t *pos_kf, float ax, float ay, float az, uint32_t time){
     if (az > 12){return;} // Guards against start of boost phase, before state update (!)
 
     /* 
@@ -779,42 +785,31 @@ void zero_velocity(position_filter_t *pos_kf){
 }
 void filter_thread(fjalar_t *fjalar, void *p2, void *p1) {
     init_t            *init  = fjalar->ptr_init;
-    position_filter_t *pos_kf = fjalar->ptr_pos_kf;
-    attitude_filter_t *att_kf = fjalar->ptr_att_kf;
-    aerodynamics_t    *aerodynamics = fjalar->ptr_aerodynamics;
-    state_t           *state = fjalar->ptr_state;
-    control_t         *control = fjalar->ptr_control;
+    // control_t         *control = fjalar->ptr_control; unused
+    position_filter_t pos_kf_l;
+    attitude_filter_t att_kf_l;
+    position_filter_t *pos_kf = &pos_kf_l;
+    attitude_filter_t *att_kf = &att_kf_l;
     
-    // call things before loop
-    struct k_poll_event events[2] = {
-    K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_MSGQ_DATA_AVAILABLE,
-                                    K_POLL_MODE_NOTIFY_ONLY,
-                                    &pressure_msgq),
-    K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_MSGQ_DATA_AVAILABLE,
-                                    K_POLL_MODE_NOTIFY_ONLY,
-                                    &imu_msgq),
-    };
-
-    // k_poll(&events[0], 1, K_FOREVER);
-    // k_poll(&events[1], 1, K_FOREVER);
-    events[0].state = K_POLL_STATE_NOT_READY;
-    events[1].state = K_POLL_STATE_NOT_READY;
-
     struct imu_queue_entry imu;
     struct pressure_queue_entry pressure;
-    struct gps_queue_entry gps;
+    // struct gps_queue_entry gps; unused
 
     position_filter_init(pos_kf, init);
     attitude_filter_init(att_kf, init);
 
+    struct flight_state_output_msg fs_msg;
+    enum fjalar_flight_state flight_state = STATE_INITIATED;
+    enum fjalar_velocity_class velocity_class = VELOCITY_SUBSONIC;
+
     while (true) {
-        if (k_poll(events, 2, K_MSEC(1000))) {
-            LOG_ERR("Stopped receiving measurements");
-            continue;
+        // Update flight state if new messages exist
+        while (zbus_chan_read(&flight_state_output_zchan, &fs_msg, K_NO_WAIT) == 0) {
+            flight_state = fs_msg.flight_state;
+            velocity_class = fs_msg.velocity_class;
         }
 
-        if (k_msgq_get(&imu_msgq, &imu, K_NO_WAIT) == 0) {
-            events[1].state = K_POLL_STATE_NOT_READY;
+        if (zbus_chan_read(&imu_zchan, &imu, K_NO_WAIT) == 0) { // gets IMU data if available
             // for external communication
             pos_kf->raw_imu_ax = imu.ax;
             pos_kf->raw_imu_ay = imu.ay;
@@ -843,16 +838,15 @@ void filter_thread(fjalar_t *fjalar, void *p2, void *p1) {
             attitude_filter_gyroscope(pos_kf, att_kf, gx, gy, gz, imu.t);
 
             // use state machine TODO: remove state idle since filter.c is not actually being run in that state
-            if (state->flight_state == STATE_INITIATED || state->flight_state == STATE_AWAITING_LAUNCH){
-                attitude_filter_accelerometer_ground(init, att_kf, pos_kf, aerodynamics, ax, ay, az, imu.t); 
+            if (flight_state == STATE_INITIATED || flight_state == STATE_AWAITING_LAUNCH){
+                attitude_filter_accelerometer_ground(init, att_kf, pos_kf, ax, ay, az, imu.t);
             }
         }
 
-        if (k_msgq_get(&pressure_msgq, &pressure, K_NO_WAIT) == 0) {
-            events[0].state = K_POLL_STATE_NOT_READY;            
+        if (zbus_chan_read(&pressure_zchan, &pressure, K_NO_WAIT) == 0) {            
             pos_kf->raw_baro_p = pressure.pressure*1000;
             // use state machine
-            if (state->velocity_class == VELOCITY_SUBSONIC){ // baro bad in native
+            if (velocity_class == VELOCITY_SUBSONIC){ // baro bad in native
                 position_filter_barometer(init, pos_kf, pressure.pressure, pressure.t); // Ask other team about barometer solution on bad data
             }          
         }
@@ -861,7 +855,7 @@ void filter_thread(fjalar_t *fjalar, void *p2, void *p1) {
         #if DT_ALIAS_EXISTS(gps_uart)
         {
             struct gps_queue_entry gps;
-            if (k_msgq_get(&gps_msgq, &gps, K_NO_WAIT) == 0 && !isnan(gps.lat) && !isnan(gps.lon) && !isnan(gps.alt)) {
+            if (zbus_chan_read(&gps_zchan, &gps, K_NO_WAIT) == 0 && !isnan(gps.lat) && !isnan(gps.lon) && !isnan(gps.alt)) {
                 pos_kf->raw_gps_lat = gps.lat;
                 pos_kf->raw_gps_lon = gps.lon;
                 pos_kf->raw_gps_alt = gps.alt;
@@ -877,7 +871,7 @@ void filter_thread(fjalar_t *fjalar, void *p2, void *p1) {
         }
         #endif
 
-        if (state->flight_state == STATE_INITIATED || state->flight_state == STATE_AWAITING_LAUNCH){
+        if (flight_state == STATE_INITIATED || flight_state == STATE_AWAITING_LAUNCH){
             // filter.c is only run after initialization, which is why these two states above are sufficient
             zero_velocity(pos_kf);
         }
@@ -907,10 +901,32 @@ void filter_thread(fjalar_t *fjalar, void *p2, void *p1) {
             //LOG_WRN("axy: %.2f, vxy: %.2f, xy: %.2f", sqrtf(pos_kf->X_data[6]*pos_kf->X_data[6]+pos_kf->X_data[7]*pos_kf->X_data[7]), sqrtf(pos_kf->X_data[3]*pos_kf->X_data[3]+pos_kf->X_data[4]*pos_kf->X_data[4]), sqrtf(pos_kf->X_data[0]*pos_kf->X_data[0]+pos_kf->X_data[1]*pos_kf->X_data[1]));
         }
         counter++;
+        struct filter_output_msg msg = {
+            .timestamp = k_uptime_get_32(),
+            .position = {pos_kf->X_data[0], pos_kf->X_data[1], pos_kf->X_data[2]},
+            .velocity = {pos_kf->X_data[3], pos_kf->X_data[4], pos_kf->X_data[5]},
+            .acceleration = {pos_kf->X_data[6], pos_kf->X_data[7], pos_kf->X_data[8]},
+            .attitude = {att_kf->X_data[0], att_kf->X_data[1], att_kf->X_data[2]},
+            .v_norm = pos_kf->v_norm,
+            .a_norm = pos_kf->a_norm,
+            .raw_imu = {pos_kf->raw_imu_ax, pos_kf->raw_imu_ay, pos_kf->raw_imu_az, att_kf->raw_imu_gx, att_kf->raw_imu_gy, att_kf->raw_imu_gz},
+            .raw_baro_p = pos_kf->raw_baro_p,
+            .raw_gps = {pos_kf->raw_gps_lat, pos_kf->raw_gps_lon, pos_kf->raw_gps_alt}
+        };
+
+        // Non-blocking publish - don't want to stall filter if channel is busy
+        if (zbus_chan_pub(&filter_output_zchan, &msg, K_NO_WAIT) != 0) {
+            // Channel busy - this means consumers are too slow
+            LOG_WRN("Filter output zbus channel busy, dropping message");
+        } else {
+            static int pub_counter = 0;
+            if (pub_counter % 100 == 0) {  // Log every 1 second (100Hz loop)
+                LOG_INF("Published: alt=%.2f, v_norm=%.2f",
+                        msg.position[2], msg.v_norm);
+            }
+            pub_counter++;
+        }
         
         k_msleep(10); // 100 Hz
         }
     }
-
-
-

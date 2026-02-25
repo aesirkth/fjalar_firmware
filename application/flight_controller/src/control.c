@@ -1,6 +1,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/drivers/sensor.h>
+#include <zephyr/zbus/zbus.h>
 #include <math.h>
 #include <pla.h>
 
@@ -34,34 +35,45 @@ void init_control(fjalar_t *fjalar) {
 		fjalar, NULL, NULL,
 		CONTROL_THREAD_PRIORITY, 0, K_NO_WAIT
 	);
-	k_thread_name_set(control_thread_id, "flight state");
+	k_thread_name_set(control_thread_id, "control");
 }
 
-
-
 void control_thread(fjalar_t *fjalar, void *p2, void *p1) {
-    init_t            *init  = fjalar->ptr_init;
-    position_filter_t *pos_kf = fjalar->ptr_pos_kf;
-    attitude_filter_t *att_kf = fjalar->ptr_att_kf;
-    aerodynamics_t    *aerodynamics = fjalar->ptr_aerodynamics;
-    state_t           *state = fjalar->ptr_state;
+	struct filter_output_msg filter_data;
+	struct aerodynamics_output_msg aero_data;
+	struct flight_state_output_msg fs_data;
+	enum fjalar_flight_state flight_state = STATE_INITIATED;
+	enum fjalar_velocity_class velocity_class = VELOCITY_SUBSONIC;
+	static float last_predicted_apogee = 0.0f;
+	static float altitude_AGL = 0.0f; // Remember last valid altitude
+
     control_t         *control = fjalar->ptr_control;
 
     static float integral = 0.0f;
     static float last_error = 0.0f;
     while (true){
+        // Try to get latest filter data (non-blocking)
+		if (zbus_chan_read(&filter_output_zchan, &filter_data, K_NO_WAIT) == 0) {
+    		altitude_AGL = filter_data.position[2];
+		}
+    	// Update flight state if new messages exist
+    	while (zbus_chan_read(&flight_state_output_zchan, &fs_data, K_NO_WAIT) == 0) {
+    		flight_state = fs_data.flight_state;
+    		velocity_class = fs_data.velocity_class;
+    	}
+    	// Try to get latest aerodynamics data (non-blocking)
+    	if (zbus_chan_read(&aero_chan, &aero_data, K_NO_WAIT) == 0) {
+    		last_predicted_apogee = aero_data.expected_apogee;
+    	}
 
-        float altitude_AGL = pos_kf->X_data[2];
-
-        if (state->flight_state == STATE_COAST && altitude_AGL > 1500.0f) {
-            float predicted_apogee = aerodynamics->expected_apogee;
+        if (flight_state == STATE_COAST && altitude_AGL > 1500.0f) {
+            float predicted_apogee = last_predicted_apogee;
             if (isnan(predicted_apogee)){
                 LOG_WRN("control run with Nan apogee value, loop blocked");
                 k_msleep(10);
                 continue;
             }
             float error = predicted_apogee - TARGET_APOGEE_AGL;
-            
             integral += error * SAMPLING_TIME_S;
 
             if (integral > PID_INTEGRAL_MAX) {
@@ -88,7 +100,7 @@ void control_thread(fjalar_t *fjalar, void *p2, void *p1) {
             float arg = num / den;
 
             if (arg > 1.0f) arg = 1.0f;
-            if (arg < -1.0f) arg = 1.0f;
+            if (arg < -1.0f) arg = 1.0f; // TODO: ask about this
 
             float theta = asinf(arg) * (180.0f / 3.14159f);
             control->airbrakes_angle = theta;

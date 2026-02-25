@@ -28,11 +28,8 @@ struct gps_queue_entry {
 
 ZBUS_CHAN_DECLARE(
     pressure_zchan,
-    imu_zchan
+    imu_zchan,
+    gps_zchan
 );
-
-extern struct k_msgq pressure_msgq;
-extern struct k_msgq imu_msgq;
-extern struct k_msgq gps_msgq;
 
 void init_sensors(fjalar_t *fjalar);

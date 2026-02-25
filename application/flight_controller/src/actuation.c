@@ -6,6 +6,7 @@ This is the actuation script, its purpose is to:
 #include <zephyr/logging/log.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/pwm.h>
+#include <zephyr/zbus/zbus.h>
 #include <math.h>
 #include <stdlib.h>
 
@@ -32,14 +33,14 @@ void led_thread(fjalar_t *fjalar, void *, void *);
 K_THREAD_STACK_DEFINE(buzzer_thread_stack, BUZZER_THREAD_STACK_SIZE);
 struct k_thread buzzer_thread_data;
 k_tid_t buzzer_thread_id;
-void buzzer_thread(fjalar_t *fjalar, state_t *state, void *);
+void buzzer_thread(fjalar_t *fjalar, void *, void *);
 
 K_THREAD_STACK_DEFINE(pyro_thread_stack, PYRO_THREAD_STACK_SIZE);
 struct k_thread pyro_thread_data;
 k_tid_t pyro_thread_id;
 void pyro_thread(fjalar_t *fjalar, void *, void *);
 
-volatile bool terminate_actuation =false;
+volatile bool terminate_actuation = false;
 
 void init_actuation(fjalar_t *fjalar) {
     terminate_actuation = false;
@@ -69,7 +70,7 @@ void init_actuation(fjalar_t *fjalar) {
 		buzzer_thread_stack,
 		K_THREAD_STACK_SIZEOF(buzzer_thread_stack),
 		(k_thread_entry_t) buzzer_thread,
-		fjalar, fjalar->ptr_state, NULL,
+		fjalar, NULL, NULL,
 		BUZZER_THREAD_PRIORITY, 0, K_NO_WAIT
 	);
 	k_thread_name_set(buzzer_thread_id, "buzzer");
@@ -82,6 +83,7 @@ int deinit_actuation() {
     e = k_thread_join(&led_thread_data, K_MSEC(1000));
     e |= k_thread_join(&pyro_thread_data, K_MSEC(1000));
     e |= k_thread_join(&buzzer_thread_data, K_MSEC(1000));
+    return e;
 }
 
 void led_thread(fjalar_t *fjalar, void *p2, void *p3) {
@@ -180,7 +182,7 @@ void play_song(const struct pwm_dt_spec *buzzer_dt, int melody[], int size, int 
 }
 
 #if DT_ALIAS_EXISTS(buzzer)
-void buzzer_thread(fjalar_t *fjalar, state_t *state, void *p3) {
+void buzzer_thread(fjalar_t *fjalar, void *p2, void *p3) {
     #if !CONFIG_BUZZER_ENABLED
     LOG_INF("Buzzer disabled");
     return;
@@ -198,13 +200,18 @@ void buzzer_thread(fjalar_t *fjalar, state_t *state, void *p3) {
         LOG_ERR("Could not set buzzer");
     }
 
+    // Track the last known flight state
+    struct flight_state_output_msg state_data = {0};
+
     while (true) {
+        zbus_chan_read(&flight_state_output_zchan, &state_data, K_NO_WAIT);
+        // If read fails, reuse last state_data
         if (fjalar->sudo) {
                 play_song(&buzzer_dt, doom_melody, sizeof(doom_melody), doom_tempo);
                 k_msleep(1000);
                 continue;
         }
-        switch (state->flight_state) {
+        switch (state_data.flight_state) {
             case STATE_LANDED:
                 play_song(&buzzer_dt, nokia_melody, sizeof(nokia_melody), nokia_tempo);
                 k_msleep(1000);

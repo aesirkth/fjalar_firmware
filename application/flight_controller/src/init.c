@@ -8,6 +8,7 @@ It is important that the rocket remains stationary while the initialization thre
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/drivers/sensor.h>
+#include <zephyr/zbus/zbus.h>
 #include <math.h>
 #include <pla.h>
 
@@ -21,7 +22,7 @@ It is important that the rocket remains stationary while the initialization thre
 #include "control.h"
 
 LOG_MODULE_REGISTER(init, LOG_LEVEL_INF);
-
+K_SEM_DEFINE(init_done_sem, 0, 1);
 #define INIT_THREAD_PRIORITY 7
 #define INIT_THREAD_STACK_SIZE 4096
 
@@ -52,7 +53,7 @@ static void init_finish(init_t *init){
 
     double mean_ax, mean_ay, mean_az;
     double mean_gx, mean_gy, mean_gz;
-    double mean_lon, mean_lat, mean_alt;
+    double mean_lon = 0, mean_lat = 0, mean_alt = 0;
     double mean_p;
 
     double diff_ax  = 0, diff_ay  = 0, diff_az  = 0;
@@ -62,7 +63,7 @@ static void init_finish(init_t *init){
 
     double var_ax, var_ay, var_az;
     double var_gx, var_gy, var_gz;
-    double var_lon, var_lat, var_alt;
+    double var_lon = 0, var_lat = 0, var_alt = 0;
     double var_p;
 
     // Calculate variance: summarize deviation from mean squared, divide by N -> variance
@@ -198,8 +199,6 @@ static void init_finish(init_t *init){
     init->pitch0 = atan2f(-new_ax, sqrtf(new_ay*new_ay + new_az*new_az));
     init->yaw0 = 0.0f;
 
-    // add beep when init finish
-    init->init_completed = true;
 }
 
 static inline bool init_ready(const init_t *init)
@@ -213,29 +212,11 @@ static inline bool init_ready(const init_t *init)
 
 void init_thread(fjalar_t *fjalar, void *p2, void *p1) {
     init_t            *init  = fjalar->ptr_init;
-    position_filter_t *pos_kf = fjalar->ptr_pos_kf;
-    attitude_filter_t *att_kf = fjalar->ptr_att_kf;
-    aerodynamics_t    *aerodynamics = fjalar->ptr_aerodynamics;
-    state_t           *state = fjalar->ptr_state;
 
-    // call things before loop
-	struct k_poll_event events[2] = {
-	K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_MSGQ_DATA_AVAILABLE,
-									K_POLL_MODE_NOTIFY_ONLY,
-									&pressure_msgq),
-	K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_MSGQ_DATA_AVAILABLE,
-									K_POLL_MODE_NOTIFY_ONLY,
-									&imu_msgq),
-    };
-
-	// k_poll(&events[0], 1, K_FOREVER);
-    // k_poll(&events[1], 1, K_FOREVER);
-    events[0].state = K_POLL_STATE_NOT_READY;
-    events[1].state = K_POLL_STATE_NOT_READY;
 
     struct imu_queue_entry imu;
     struct pressure_queue_entry pressure;
-    struct gps_queue_entry gps;
+    // struct gps_queue_entry gps; unused
 
     init->n_imu = 0;
     init->n_baro = 0;
@@ -243,8 +224,7 @@ void init_thread(fjalar_t *fjalar, void *p2, void *p1) {
     
     while (!init_ready(init)) {
 
-		if (k_msgq_get(&imu_msgq, &imu, K_NO_WAIT) == 0) {
-            events[1].state = K_POLL_STATE_NOT_READY;
+		if (zbus_chan_read(&imu_zchan, &imu, K_NO_WAIT) == 0) {
             LOG_INF("IMU N: %d", init->n_imu);
 
             // init mode
@@ -259,8 +239,7 @@ void init_thread(fjalar_t *fjalar, void *p2, void *p1) {
             }
         }
         
-		if (k_msgq_get(&pressure_msgq, &pressure, K_NO_WAIT) == 0) {
-            events[0].state = K_POLL_STATE_NOT_READY;
+		if (zbus_chan_read(&pressure_zchan, &pressure, K_NO_WAIT) == 0) {
             LOG_INF("BARO N: %d", init->n_baro);
 
             // init
@@ -274,7 +253,7 @@ void init_thread(fjalar_t *fjalar, void *p2, void *p1) {
 		 #if DT_ALIAS_EXISTS(gps_uart)
         {
             struct gps_queue_entry gps;
-            if (k_msgq_get(&gps_msgq, &gps, K_NO_WAIT) == 0) {
+            if (zbus_chan_read(&gps_zchan, &gps, K_NO_WAIT) == 0) {
 
                 // Reject frames that contain NaN or Inf in ANY field
                 if (isfinite(gps.lat) &&
@@ -309,5 +288,8 @@ void init_thread(fjalar_t *fjalar, void *p2, void *p1) {
     init_control(&fjalar_god);
     LOG_INF("Init phase completed, started Kalman Filters.");
     // add BEEP from buzzer
+
+    // Signal completion
+    k_sem_give(&init_complete_sem);
 }
 

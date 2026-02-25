@@ -1,12 +1,29 @@
 #pragma once
 
+#include <zephyr/kernel.h>
+#include <zephyr/zbus/zbus.h>
 #include <zsl/matrices.h>
 #include "fjalar.h"
+#include "flight_state.h"
 
 typedef struct fjalar fjalar_t;
 typedef struct init init_t;
-typedef struct aerodynamics aerodynamics_t;
 typedef struct state state_t;
+
+typedef struct filter_output_msg {
+    uint32_t timestamp;
+    float position[3];    // x, y, z
+    float velocity[3];    // vx, vy, vz
+    float acceleration[3]; // ax, ay, az
+    float attitude[3];     // roll, pitch, yaw
+    float v_norm;
+    float a_norm;
+    float raw_imu[6];     // ax, ay, az, gx, gy, gz
+    float raw_baro_p;
+    float raw_gps[3];     // lat, lon, alt
+}filter_output_msg;
+
+ZBUS_CHAN_DECLARE(filter_output_zchan);
 
 typedef struct position_filter {
     zsl_real_t P_data[81];

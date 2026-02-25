@@ -5,12 +5,11 @@
 #include "fjalar.h"
 #include "flight_state.h"
 #include "protocol.h"
+#include "actuation.h"
 
 enum message_priority {
 	MSG_PRIO_LOW,
-	MSG_PRIO_MEDIUM,
 	MSG_PRIO_HIGH,
-	MSG_PRIO_MAX,
 };
 
 struct padded_buf {uint8_t buf[PROTOCOL_BUFFER_LENGTH];} __attribute__((aligned(4)));

@@ -1,6 +1,9 @@
 #pragma once
 
 #include "fjalar.h"
+#include "filter.h"
+#include "aerodynamics.h"
+
 #define TARGET_APOGEE_AGL       3000.0f
 
 #define SAMPLING_RATE_HZ        100.0f
@@ -22,9 +25,6 @@
 
 typedef struct fjalar fjalar_t;
 typedef struct init init_t;
-typedef struct position_filter position_filter_t;
-typedef struct attitude_filter attitude_filter_t;
-typedef struct aerodynamics aerodynamics_t;
 
 typedef struct control {
     float airbrakes_angle; // rename, idk what you guys need

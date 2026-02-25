@@ -2,6 +2,7 @@
 #include <protocol.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/drivers/flash.h>
+#include <zephyr/zbus/zbus.h>
 
 #include "init.h"
 #include "filter.h"
@@ -142,115 +143,116 @@ void flash_msg_enqueue(fjalar_message_t *msg){
 }
 
 void flash_msg_enqueue_thread(fjalar_t *fjalar, void *p2, void *p3){
-	init_t            *init  = fjalar->ptr_init;
-    position_filter_t *pos_kf = fjalar->ptr_pos_kf;
-    attitude_filter_t *att_kf = fjalar->ptr_att_kf;
-    aerodynamics_t    *aerodynamics = fjalar->ptr_aerodynamics;
-    state_t           *state = fjalar->ptr_state;
-    control_t         *control = fjalar->ptr_control;
     can_t             *can = fjalar->ptr_can;
 	
 	while (true){
-		// imu 
-		fjalar_message_t msg_imu = {
-			.time = k_uptime_get_32(),
-			.has_data = true,
-			.data = {
-				.which_data = FJALAR_DATA_IMU_READING_TAG,
-				.data.imu_reading = {
-					.ax = pos_kf->raw_imu_ax,
-					.ay = pos_kf->raw_imu_ay,
-					.az = pos_kf->raw_imu_az,
-					.gx = att_kf->raw_imu_gx,
-					.gy = att_kf->raw_imu_gy,
-					.gz = att_kf->raw_imu_gz,
+		struct filter_output_msg filter_msg;
+		int rer = zbus_chan_read(&filter_output_zchan, &filter_msg, K_NO_WAIT);
+		if (rer == 0) {
+			// imu
+			fjalar_message_t msg_imu = {
+				.time = k_uptime_get_32(),
+				.has_data = true,
+				.data = {
+					.which_data = FJALAR_DATA_IMU_READING_TAG,
+					.data.imu_reading = {
+						.ax = filter_msg.raw_imu[0],
+						.ay = filter_msg.raw_imu[1],
+						.az = filter_msg.raw_imu[2],
+						.gx = filter_msg.raw_imu[3],
+						.gy = filter_msg.raw_imu[4],
+						.gz = filter_msg.raw_imu[5],
+					},
 				},
-			},
-		};
-		flash_msg_enqueue(&msg_imu);
+			};
+			flash_msg_enqueue(&msg_imu);
 
-		// baro
-		fjalar_message_t msg_baro = {
-			.time = k_uptime_get_32(),
-			.has_data = true,
-			.data = {
-				.which_data = FJALAR_DATA_PRESSURE_READING_TAG,
-				.data.pressure_reading = {
-					.pressure = pos_kf->raw_baro_p
+			// baro
+			fjalar_message_t msg_baro = {
+				.time = k_uptime_get_32(),
+				.has_data = true,
+				.data = {
+					.which_data = FJALAR_DATA_PRESSURE_READING_TAG,
+					.data.pressure_reading = {
+						.pressure = filter_msg.raw_baro_p
+					},
 				},
-			},
-		};
-		flash_msg_enqueue(&msg_baro);
-		
-		// gps
-		fjalar_message_t msg_gps = {
-			.time = k_uptime_get_32(),
-			.has_data = true,
-			.data = {
-				.which_data = FJALAR_DATA_GNSS_POSITION_TAG,
-				.data.gnss_position = {
-					.latitude = pos_kf->raw_gps_lat,
-					.longitude = pos_kf->raw_gps_lon,
-					.altitude = pos_kf->raw_gps_alt,
-				},
-			},
-		};
-		flash_msg_enqueue(&msg_gps);
+			};
+			flash_msg_enqueue(&msg_baro);
 
-		// StateEstimate
-		fjalar_message_t msg_state_estimate = {
-			.time = k_uptime_get_32(),
-			.has_data = true,
-			.data = {
-				.which_data = FJALAR_DATA_STATE_ESTIMATE_TAG,
-				.data.state_estimate = {
-					.x     = pos_kf->X_data[0],
-					.y     = pos_kf->X_data[1],
-					.z     = pos_kf->X_data[2],
-					.vx    = pos_kf->X_data[3],
-					.vy    = pos_kf->X_data[4],
-					.vz    = pos_kf->X_data[5],
-					.ax    = pos_kf->X_data[6],
-					.ay    = pos_kf->X_data[7],
-					.az    = pos_kf->X_data[8],
-					
-					.roll  = att_kf->X_data[0],
-					.pitch = att_kf->X_data[1],
-					.yaw   = att_kf->X_data[2],
+			// gps
+			fjalar_message_t msg_gps = {
+				.time = k_uptime_get_32(),
+				.has_data = true,
+				.data = {
+					.which_data = FJALAR_DATA_GNSS_POSITION_TAG,
+					.data.gnss_position = {
+						.latitude = filter_msg.raw_gps[0],
+						.longitude = filter_msg.raw_gps[1],
+						.altitude = filter_msg.raw_gps[2],
+					},
 				},
-			},
-		};
-		flash_msg_enqueue(&msg_state_estimate);
+			};
+			flash_msg_enqueue(&msg_gps);
 
-		// FlightState
-		fjalar_message_t msg_flight_state = {
-			.time = k_uptime_get_32(),
-			.has_data = true,
-			.data = {
-				.which_data = FJALAR_DATA_FLIGHT_STATE_TAG,
-				.data.flight_state = state->flight_state
-			},
-		};
-		flash_msg_enqueue(&msg_flight_state);
+			// StateEstimate
+			fjalar_message_t msg_state_estimate = {
+				.time = k_uptime_get_32(),
+				.has_data = true,
+				.data = {
+					.which_data = FJALAR_DATA_STATE_ESTIMATE_TAG,
+					.data.state_estimate = {
+						.x     = filter_msg.position[0],
+						.y     = filter_msg.position[1],
+						.z     = filter_msg.position[2],
+						.vx    = filter_msg.velocity[0],
+						.vy    = filter_msg.velocity[1],
+						.vz    = filter_msg.velocity[2],
+						.ax    = filter_msg.acceleration[0],
+						.ay    = filter_msg.acceleration[1],
+						.az    = filter_msg.acceleration[2],
 
-		// FlightEvent
-		fjalar_message_t msg_flight_event = {
-			.time = k_uptime_get_32(),
-			.has_data = true,
-			.data = {
-				.which_data = FJALAR_DATA_FLIGHT_EVENT_TAG,
-				.data.flight_event = {
-					.launch              = state->event_launch,
-					.burnout             = state->event_burnout,
-					.apogee              = state->event_apogee,
-					.drogue_deploy       = state->event_drogue_deployed,
-					.main_deploy         = state->event_main_deployed,
-					.landed              = state->event_landed,
-					.above_acs_threshold = state->event_above_acs_threshold,
+						.roll  = filter_msg.attitude[0],
+						.pitch = filter_msg.attitude[1],
+						.yaw   = filter_msg.attitude[2],
+					},
 				},
-			},
-		};
-		flash_msg_enqueue(&msg_flight_event);
+			};
+			flash_msg_enqueue(&msg_state_estimate);
+		}
+		struct flight_state_output_msg fs_msg;
+		int ret = zbus_chan_read(&flight_state_output_zchan, &fs_msg, K_NO_WAIT);
+
+		if (ret == 0) {
+			// Flight State
+			fjalar_message_t msg_flight_state = {
+				.time = fs_msg.timestamp,
+				.has_data = true,
+				.data = {
+					.which_data = FJALAR_DATA_FLIGHT_STATE_TAG,
+					.data.flight_state = fs_msg.flight_state
+				},
+			};
+			flash_msg_enqueue(&msg_flight_state);
+			// Flight Event
+			fjalar_message_t msg_flight_event = {
+				.time = fs_msg.timestamp,
+				.has_data = true,
+				.data = {
+					.which_data = FJALAR_DATA_FLIGHT_EVENT_TAG,
+					.data.flight_event = {
+						.launch              = fs_msg.event_launch,
+						.burnout             = fs_msg.event_burnout,
+						.apogee              = fs_msg.event_apogee,
+						.drogue_deploy       = fs_msg.event_drogue_deployed,
+						.main_deploy         = fs_msg.event_main_deployed,
+						.landed              = fs_msg.event_landed,
+						.above_acs_threshold = fs_msg.event_above_acs_threshold,
+					},
+				},
+			};
+			flash_msg_enqueue(&msg_flight_event);
+		}
 
 		// CANBus
 		fjalar_message_t msg_can_bus = {

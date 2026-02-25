@@ -2,6 +2,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/drivers/sensor.h>
+#include <zephyr/zbus/zbus.h>
 #include <math.h>
 #include <pla.h>
 #include <zephyr/init.h>
@@ -62,24 +63,24 @@ const struct can_filter filter_rx_sigurd = {
 
 const struct device *const can_dev = DEVICE_DT_GET(DT_ALIAS(canbus));
 
-void can_tx_loki(const struct device *can_dev, state_t *state, control_t *control, can_t *can)
+void can_tx_loki(const struct device *can_dev, struct flight_state_output_msg *fs_msg, control_t *control, can_t *can)
 {
     const size_t DLC = 4;
     uint8_t data[DLC];
     int ret;
 
     // byte 0: high nibble=state, low nibble=substate 
-    uint8_t st = (uint8_t)state->flight_state;
+    uint8_t st = (uint8_t)fs_msg->flight_state;
     if (st > 0x0F) {
         LOG_ERR("state out of range");
     }
 
-    uint8_t ev = (state->event_above_acs_threshold) ? 0xA : 0x5; // choose 0xA (1010) or 0x5 (0101)
+    uint8_t ev = (fs_msg->event_above_acs_threshold) ? 0xA : 0x5; // choose 0xA (1010) or 0x5 (0101)
     
     data[0] = (ev << 4) | (st & 0x0F);
 
     // byte 1: event marker 
-    data[1] = (state->event_above_acs_threshold && state->flight_state == STATE_COAST) ? 0xAA : 0x55;
+    data[1] = (fs_msg->event_above_acs_threshold && fs_msg->flight_state == STATE_COAST) ? 0xAA : 0x55;
 
     // bytes 2–3: angle ×100 
     float  airbrake_angle = control->airbrakes_angle; // from control script (PID algo)
@@ -158,13 +159,9 @@ static int can_cb_priv_init(can_t *can){
 #endif
 
 void can_thread(fjalar_t *fjalar, void *p2, void *p1) {
-    init_t            *init  = fjalar->ptr_init;
-    position_filter_t *pos_kf = fjalar->ptr_pos_kf;
-    attitude_filter_t *att_kf = fjalar->ptr_att_kf;
-    aerodynamics_t    *aerodynamics = fjalar->ptr_aerodynamics;
-    state_t           *state = fjalar->ptr_state;
     can_t             *can = fjalar->ptr_can;
     control_t         *control = fjalar->ptr_control;
+    int ret = 0;
 
     #if DT_ALIAS_EXISTS(canbus)
     static uint8_t init_flag =0;
@@ -172,10 +169,9 @@ void can_thread(fjalar_t *fjalar, void *p2, void *p1) {
     if (init_flag==0)
     {
         init_flag=1;
-        int ret = can_cb_priv_init(can);
+        ret = can_cb_priv_init(can);
     }
 
-    int ret;
     ret = can_set_bitrate(can_dev, 500000); // 500 kb/s
     if (ret) {LOG_ERR("Failed to set CAN nominal bitrate: [%d]", ret);}
     else{LOG_INF("CAN nominal bitrate successfully set to 500kb/s");}
@@ -190,14 +186,17 @@ void can_thread(fjalar_t *fjalar, void *p2, void *p1) {
         LOG_INF("CAN started");
         can->can_started = true;
     }
-
-
     
     #endif
+    struct flight_state_output_msg fs_msg;
 
     while (true) {
+        ret = zbus_chan_read(&flight_state_output_zchan, &fs_msg, K_NO_WAIT);
         #if DT_ALIAS_EXISTS(canbus)
-        can_tx_loki(can_dev, state, control, can);
+        if (ret == 0) {
+            // Use fs_msg to populate CAN messages
+            can_tx_loki(can_dev, &fs_msg, control, can);
+        }
         //can_tx_sigurd(state, can_dev);
         #endif
 
