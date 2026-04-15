@@ -23,6 +23,7 @@ It is important that the rocket remains stationary while the initialization thre
 
 LOG_MODULE_REGISTER(init, LOG_LEVEL_INF);
 K_SEM_DEFINE(init_done_sem, 0, 1);
+K_SEM_DEFINE(init_complete_sem, 0, 1);
 #define INIT_THREAD_PRIORITY 7
 #define INIT_THREAD_STACK_SIZE 4096
 
